@@ -46,3 +46,4 @@ logs/
 # AWS
 .aws/
 aws.json .terraform/
+.terraform/
