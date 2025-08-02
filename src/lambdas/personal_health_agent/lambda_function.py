@@ -209,28 +209,58 @@ def analyze_with_bedrock(events):
     """Analyze events using Bedrock."""
     try:
         # Prepare the prompt for Bedrock
-        prompt = {
-            "prompt": f"""Analyze the following AWS Health events:
-            {json.dumps(events, indent=2)}
-            
-            Please provide:
-            1. A summary of the events
-            2. Impact assessment
-            3. Recommended actions
-            4. Preventive measures
-            """,
-            "max_tokens": 1000,
-            "temperature": 0.7
-        }
+        prompt = f"""Analyze the following AWS Health events:
+        {json.dumps(events, indent=2)}
+        
+        Please provide:
+        1. A summary of the events
+        2. Impact assessment
+        3. Recommended actions
+        4. Preventive measures
+        
+        Format your response as JSON with the following structure:
+        {{
+            "summary": "summary of events",
+            "impact_assessment": [list of impacts],
+            "recommended_actions": [list of actions],
+            "preventive_measures": [list of measures]
+        }}
+        """
 
-        # Call Bedrock
+        # Call Claude 3 Haiku via Bedrock
         response = bedrock.invoke_model(
-            modelId='anthropic.claude-v2',
-            body=json.dumps(prompt)
+            modelId='anthropic.claude-3-haiku-20240307-v1:0',
+            contentType='application/json',
+            accept='application/json',
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 1000,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            })
         )
 
-        # Parse and return the analysis
-        analysis = json.loads(response['body'].read())
+        # Parse the response
+        response_body = json.loads(response['body'].read().decode('utf-8'))
+        content = response_body['content'][0]['text']
+        
+        # Extract JSON from the response
+        try:
+            # Find JSON in the response
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = content[json_start:json_end]
+                analysis = json.loads(json_str)
+            else:
+                analysis = {"error": "Could not extract JSON from response"}
+        except json.JSONDecodeError:
+            analysis = {"error": "Invalid JSON in response"}
+        
         return analysis
 
     except Exception as e:

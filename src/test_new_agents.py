@@ -55,38 +55,38 @@ def create_and_test_agents():
         # Create or get existing agents
         for agent in new_agents:
             try:
-                logger.info(f"Creating agent {agent['name']}...")
+                logger.info("Creating agent {}...".format(agent['name']))
                 response = bedrock_agent.create_agent(
                     agentName=agent['name'],
                     description=agent['description'],
                     instruction=agent['instruction'],
                     foundationModel='anthropic.claude-v2',
                     idleSessionTTLInSeconds=3600,
-                    agentResourceRoleArn=f"arn:aws:iam::{account_id}:role/SREKnowledgeBaseRole"
+                    agentResourceRoleArn="arn:aws:iam::{}:role/SREKnowledgeBaseRole".format(account_id)
                 )
                 agent_id = response['agent']['agentId']
-                logger.info(f"Created agent {agent['name']} with ID: {agent_id}")
+                logger.info("Created agent {} with ID: {}".format(agent['name'], agent_id))
                 created_agents[agent['config_key']] = agent_id
             except ClientError as e:
                 if e.response['Error']['Code'] == 'ConflictException':
-                    logger.info(f"Agent {agent['name']} already exists, retrieving ID...")
+                    logger.info("Agent {} already exists, retrieving ID...".format(agent['name']))
                     # Get existing agent ID
                     agents = bedrock_agent.list_agents()
                     agent_id = next(a['agentId'] for a in agents['agentSummaries'] if a['agentName'] == agent['name'])
                     created_agents[agent['config_key']] = agent_id
-                    logger.info(f"Retrieved existing agent ID: {agent_id}")
+                    logger.info("Retrieved existing agent ID: {}".format(agent_id))
                 else:
                     raise
 
             # Wait for agent to be ready
-            logger.info(f"Waiting for agent {agent['name']} to be ready...")
+            logger.info("Waiting for agent {} to be ready...".format(agent['name']))
             while True:
                 status = bedrock_agent.get_agent(
                     agentId=agent_id
                 )['agent']['agentStatus']
                 if status == 'Ready':
                     break
-                logger.info(f"Agent status: {status}, waiting...")
+                logger.info("Agent status: {}, waiting...".format(status))
                 time.sleep(10)
 
         # Update config file with agent IDs
@@ -116,7 +116,7 @@ def create_and_test_agents():
         return created_agents
 
     except Exception as e:
-        logger.error(f"Error creating and testing agents: {e}")
+        logger.error("Error creating and testing agents: {}".format(e))
         raise
 
 if __name__ == "__main__":

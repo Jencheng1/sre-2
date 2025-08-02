@@ -1,0 +1,115 @@
+{
+  "test_cases": [
+    {
+      "id": "TC001",
+      "name": "CloudTrail Real API Test",
+      "agent": "sre-cloudtrail-agent-lambda",
+      "action": "get_recent_events",
+      "params": {"max_results": 10},
+      "validations": [
+        "Response contains 'events' array",
+        "Events have real AWS event names",
+        "Events have real timestamps",
+        "No mock/fake/test keywords in response"
+      ]
+    },
+    {
+      "id": "TC002",
+      "name": "VPC Flow Logs Real API Test",
+      "agent": "sre-vpc-flow-logs-agent-lambda",
+      "action": "get_security_group_analysis",
+      "params": {},
+      "validations": [
+        "Response contains security group data",
+        "Security groups have real AWS IDs",
+        "Data matches EC2 console"
+      ]
+    },
+    {
+      "id": "TC003",
+      "name": "Trusted Advisor Real API Test",
+      "agent": "sre-trusted-advisor-agent-lambda",
+      "action": "get_service_limits",
+      "params": {"max_results": 5},
+      "validations": [
+        "Response contains Trusted Advisor checks",
+        "Checks are from real AWS Support API",
+        "Recommendations match AWS console"
+      ]
+    },
+    {
+      "id": "TC004",
+      "name": "Personal Health Real API Test",
+      "agent": "sre-personal-health-agent-lambda",
+      "action": "get_service_issues",
+      "params": {"max_results": 10},
+      "validations": [
+        "Response from real AWS Health API",
+        "Events match Personal Health Dashboard",
+        "No hardcoded or mock data"
+      ]
+    },
+    {
+      "id": "TC005",
+      "name": "CloudWatch Logs Real API Test",
+      "agent": "sre-cloudwatch-logs-agent-lambda",
+      "action": "search_logs",
+      "params": {
+        "log_group": "/aws/lambda/sre-supervisor-lambda",
+        "pattern": "ERROR",
+        "hours": 24
+      },
+      "validations": [
+        "Real log entries from CloudWatch",
+        "Timestamps are recent",
+        "Log group exists in account"
+      ]
+    },
+    {
+      "id": "TC006",
+      "name": "Supervisor Orchestration Test",
+      "agent": "sre-supervisor-lambda",
+      "action": "analyze",
+      "params": {
+        "body": "{\"action\": \"analyze\", \"description\": \"API latency spike detected on production endpoints\"}"
+      },
+      "validations": [
+        "Supervisor invokes real Lambda functions",
+        "Collects data from multiple agents",
+        "No hardcoded responses",
+        "Uses real AWS Bedrock for analysis"
+      ]
+    },
+    {
+      "id": "TC007",
+      "name": "CloudWatch Metrics Real API Test",
+      "agent": "sre-cloudwatch-logs-agent-lambda",
+      "action": "get_log_metrics",
+      "params": {
+        "log_group": "/aws/lambda/sre-supervisor-lambda",
+        "hours": 1
+      },
+      "validations": [
+        "Real CloudWatch metrics retrieved",
+        "Metrics have actual data points",
+        "Timestamps are recent"
+      ]
+    },
+    {
+      "id": "TC008",
+      "name": "Cross-Agent Integration Test",
+      "description": "Verify agents work together with real data",
+      "agent": "sre-supervisor-lambda",
+      "action": "analyze",
+      "params": {
+        "body": "{\"action\": \"analyze\", \"description\": \"Complete system health check across all AWS services\"}"
+      },
+      "validations": [
+        "All agents return real data",
+        "No mock responses",
+        "Data is consistent across agents",
+        "AI analysis uses collected data"
+      ]
+    }
+  ]
+}

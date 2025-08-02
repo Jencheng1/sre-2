@@ -1,0 +1,4 @@
+The CloudWatch dashboard shows:
+- A spike in database CPU utilization at 2:00 PM
+- Increased memory usage on the application servers
+- Correlation between database connections and latency

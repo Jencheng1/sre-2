@@ -1,0 +1,4 @@
+2025-04-06 13:55:23 INFO  [ProductService] Average response time: 120ms
+2025-04-06 14:02:17 WARN  [DatabaseConnector] Connection pool reaching capacity (85%)
+2025-04-06 14:05:42 ERROR [DatabaseConnector] Connection timeout after 3000ms
+2025-04-06 14:06:13 ERROR [ProductService] Failed to retrieve product data: Database connection timeout

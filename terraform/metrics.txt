@@ -1,0 +1,3 @@
+Database connection pool utilization increased from 60% to 95%
+Database query latency increased from 50ms to 500ms
+Product service error rate increased from 0.1% to 5%

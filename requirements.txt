@@ -1,16 +1,14 @@
-boto3>=1.28.0
-botocore>=1.31.0
-opensearch-py>=2.2.0
-requests-aws4auth>=1.2.0
-pandas>=2.0.0
-numpy>=1.24.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-logparser>=0.8.2
-python-dateutil>=2.8.2
-pillow>=10.0.0
-opencv-python-headless>=4.8.0
-prometheus-client>=0.17.0
-flask>=2.3.0
-flask-cors>=4.0.0
-python-dotenv>=1.0.0
+# Requirements for SRE Copilot Streamlit Application
+
+# Core dependencies
+streamlit==1.32.2
+boto3==1.34.25
+pandas==2.2.0
+plotly==5.18.0
+
+# AWS SDK
+botocore==1.34.25
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2024.1
