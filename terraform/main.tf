@@ -68,7 +68,9 @@ resource "aws_iam_role_policy" "cloudtrail_access" {
         Action = [
           "cloudtrail:LookupEvents",
           "cloudtrail:DescribeTrails",
-          "cloudtrail:GetTrailStatus"
+          "cloudtrail:GetTrailStatus",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:PutMetricData"
         ]
         Resource = "*"
       }
@@ -88,6 +90,8 @@ resource "aws_iam_role_policy" "vpc_flow_logs_access" {
         Effect = "Allow"
         Action = [
           "ec2:DescribeFlowLogs",
+          "ec2:DescribeSecurityGroups",
+          "logs:DescribeLogGroups",
           "logs:DescribeLogStreams",
           "logs:GetLogEvents",
           "logs:FilterLogEvents"
@@ -133,6 +137,31 @@ resource "aws_iam_role_policy" "personal_health_access" {
           "health:DescribeEvents",
           "health:DescribeEventDetails",
           "health:DescribeAffectedEntities"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Add CloudWatch Logs access policy
+resource "aws_iam_role_policy" "cloudwatch_logs_access" {
+  name = "cloudwatch-logs-access"
+  role = aws_iam_role.sre_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+          "logs:GetLogEvents",
+          "logs:FilterLogEvents",
+          "logs:DescribeMetricFilters",
+          "logs:PutMetricFilter",
+          "logs:DeleteMetricFilter"
         ]
         Resource = "*"
       }
@@ -320,4 +349,46 @@ module "vpc_agent_lambda" {
     Environment = var.environment
     Service     = "sre-copilot"
   }
+}
+
+# CloudWatch Logs Agent Lambda
+module "cloudwatch_logs_agent_lambda" {
+  source = "./modules/lambda"
+
+  function_name    = "sre-cloudwatch-logs-agent-lambda"
+  description     = "SRE CloudWatch Logs Agent Lambda Function"
+  handler         = "lambda_function.lambda_handler"
+  lambda_role_arn = aws_iam_role.sre_lambda_role.arn
+  source_dir      = "../src/lambdas/cloudwatch_logs_agent"
+  runtime         = "python3.9"
+  timeout         = 300
+  memory_size     = 256
+
+  environment_variables = {
+    LOG_LEVEL = "INFO"
+  }
+
+  tags = {
+    Environment = var.environment
+    Service     = "sre-copilot"
+  }
 } 
+
+# Add Lambda invoke policy for supervisor
+resource "aws_iam_role_policy" "lambda_invoke_access" {
+  name = "lambda-invoke-access"
+  role = aws_iam_role.sre_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = "arn:aws:lambda:*:*:function:sre-*"
+      }
+    ]
+  })
+}

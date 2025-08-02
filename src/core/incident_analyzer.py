@@ -33,6 +33,7 @@ class SRECopilotAnalyzer:
             
     def analyze_incident(self, incident_description, log_data=None, metrics_data=None, dashboard_data=None):
         """Analyze an incident using the SRE Copilot."""
+        import time
         try:
             agent_id = self.config['supervisor_agent']['id']
             logger.info(f"Analyzing incident: {incident_description[:100]}...")
@@ -53,6 +54,7 @@ class SRECopilotAnalyzer:
             response = self.bedrock_runtime_client.invoke_agent(
                 agentId=agent_id,
                 agentAliasId='TSTALIASID',  # Use the appropriate alias ID or 'TSTALIASID' for testing
+                sessionId='test-session-' + str(int(time.time())),  # Generate unique session ID
                 inputText=input_text,
                 enableTrace=True
             )
