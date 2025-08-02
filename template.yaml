@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: SRE Copilot Agents Lambda Functions and IAM Roles
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - dev
+      - prod
+    Description: Environment name
+
+  CloudTrailAgentName:
+    Type: String
+    Default: cloudtrail-agent
+    Description: Name of the CloudTrail agent Lambda function
+
+  VPCAgentName:
+    Type: String
+    Default: vpc-agent
+    Description: Name of the VPC agent Lambda function
+
+  TrustedAdvisorAgentName:
+    Type: String
+    Default: trusted-advisor-agent
+    Description: Name of the Trusted Advisor agent Lambda function
+
+  PersonalHealthAgentName:
+    Type: String
+    Default: personal-health-agent
+    Description: Name of the Personal Health agent Lambda function
+
+Resources:
+  CloudTrailAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CloudTrailAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudtrail:LookupEvents
+                  - cloudtrail:DescribeTrails
+                  - cloudtrail:GetTrailStatus
+                Resource: '*'
+
+  VPCAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: VPCAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeFlowLogs
+                  - ec2:DescribeSecurityGroups
+                  - logs:FilterLogEvents
+                Resource: '*'
+
+  TrustedAdvisorAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TrustedAdvisorAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - trustedadvisor:DescribeChecks
+                  - trustedadvisor:DescribeCheckResults
+                  - trustedadvisor:DescribeCheckSummaries
+                Resource: '*'
+
+  PersonalHealthAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: PersonalHealthAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - health:DescribeEvents
+                  - health:DescribeEventDetails
+                  - health:DescribeAffectedEntities
+                Resource: '*'
+
+  CloudTrailAgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: deploy/cloudtrail_agent.zip
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt CloudTrailAgentRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+  VPCAgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: deploy/vpc_agent.zip
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt VPCAgentRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+  TrustedAdvisorAgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: deploy/trusted_advisor_agent.zip
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt TrustedAdvisorAgentRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+  PersonalHealthAgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: deploy/personal_health_agent.zip
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt PersonalHealthAgentRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+Outputs:
+  CloudTrailAgentFunction:
+    Description: CloudTrail Agent Lambda Function ARN
+    Value: !GetAtt CloudTrailAgentFunction.Arn
+
+  VPCAgentFunction:
+    Description: VPC Agent Lambda Function ARN
+    Value: !GetAtt VPCAgentFunction.Arn
+
+  TrustedAdvisorAgentFunction:
+    Description: Trusted Advisor Agent Lambda Function ARN
+    Value: !GetAtt TrustedAdvisorAgentFunction.Arn
+
+  PersonalHealthAgentFunction:
+    Description: Personal Health Agent Lambda Function ARN
+    Value: !GetAtt PersonalHealthAgentFunction.Arn 

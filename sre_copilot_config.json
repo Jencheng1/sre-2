@@ -1,0 +1,70 @@
+{
+    "aws_region": "us-east-1",
+    "create_agents": true,
+    "supervisor_agent": {
+        "name": "SRE-Supervisor",
+        "description": "Coordinates analysis and response for SRE incidents",
+        "instruction": "You are an SRE supervisor agent responsible for coordinating incident analysis and response. Your role is to delegate tasks to specialized agents and synthesize their findings.",
+        "model": "anthropic.claude-v2",
+        "id": "XKVWGESIAX"
+    },
+    "log_analysis_agent": {
+        "name": "SRE-Log-Analyzer",
+        "description": "Analyzes log data for patterns and anomalies",
+        "instruction": "You are a log analysis agent specialized in identifying patterns, anomalies, and root causes in system logs. Focus on extracting meaningful insights from log data.",
+        "model": "anthropic.claude-v2",
+        "id": "KYE8CL4NWP"
+    },
+    "metrics_analysis_agent": {
+        "name": "SRE-Metrics-Analyzer",
+        "description": "Analyzes time-series metrics data",
+        "instruction": "You are a metrics analysis agent specialized in analyzing time-series data, identifying trends, and detecting anomalies in system metrics.",
+        "model": "anthropic.claude-v2",
+        "id": "HJZP7VBZOI"
+    },
+    "cloudtrail_agent": {
+        "name": "SRE-CloudTrail-Analyzer",
+        "description": "Analyzes AWS CloudTrail logs for security and compliance",
+        "instruction": "You are a CloudTrail analysis agent specialized in monitoring and analyzing AWS API activity. Focus on identifying security issues, compliance violations, and unauthorized access attempts.",
+        "model": "anthropic.claude-v2",
+        "id": "RPAXDVETHN"
+    },
+    "vpc_agent": {
+        "name": "SRE-VPC-Analyzer",
+        "description": "Analyzes VPC Flow Logs for network traffic patterns",
+        "instruction": "You are a VPC analysis agent specialized in analyzing network traffic patterns from VPC Flow Logs. Focus on identifying suspicious traffic, network bottlenecks, and security group violations.",
+        "model": "anthropic.claude-v2",
+        "id": "BNFYR1YTWU"
+    },
+    "trusted_advisor_agent": {
+        "name": "SRE-Trusted-Advisor-Analyzer",
+        "description": "Analyzes AWS Trusted Advisor recommendations",
+        "instruction": "You are a Trusted Advisor analysis agent specialized in processing AWS service quotas, security recommendations, and cost optimization opportunities. Focus on identifying critical service limits, security risks, and cost savings.",
+        "model": "anthropic.claude-v2",
+        "id": "BB2OARRB3J"
+    },
+    "personal_health_agent": {
+        "name": "SRE-Personal-Health-Analyzer",
+        "description": "Analyzes AWS Personal Health Dashboard events",
+        "instruction": "You are a Personal Health analysis agent specialized in monitoring AWS service health events. Focus on identifying service issues, maintenance events, and account-specific notifications that may impact system reliability.",
+        "model": "anthropic.claude-v2",
+        "id": "WOHWA21ZBK"
+    },
+    "knowledge_base": {
+        "name": "sre-copilot-knowledge-base",
+        "description": "Knowledge base for storing historical incident data",
+        "data_source_config": {
+            "collectionId": "sre-copilot-collection",
+            "vectorIndexName": "sre-copilot-index",
+            "fieldMapping": {
+                "text_field": "description",
+                "metadata_fields": [
+                    "incident_id",
+                    "root_cause",
+                    "resolution",
+                    "services_affected"
+                ]
+            }
+        }
+    }
+}
