@@ -1,0 +1,7 @@
+{
+  "splunk": 9080,
+  "dynatrace": 9081,
+  "servicenow": 9082,
+  "confluence": 9083,
+  "gitlab": 9084
+}
