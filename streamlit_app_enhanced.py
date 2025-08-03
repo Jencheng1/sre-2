@@ -80,11 +80,6 @@ class IncidentGenerator:
     
     def __init__(self):
         self.region = 'us-east-1'
-        self.demo_resources = {
-            'security_group_id': None,
-            'log_group_name': '/aws/demo/sre-incident-generator',
-            'namespace': 'SREDemo/Application'
-        }
         self.setup_aws_clients()
         
     def setup_aws_clients(self):
@@ -94,9 +89,7 @@ class IncidentGenerator:
             'cloudwatch': boto3.client('cloudwatch', region_name=self.region),
             'ec2': boto3.client('ec2', region_name=self.region),
             'ssm': boto3.client('ssm', region_name=self.region),
-            'cloudtrail': boto3.client('cloudtrail', region_name=self.region),
-            's3': boto3.client('s3', region_name=self.region),
-            'lambda': boto3.client('lambda', region_name=self.region)
+            'cloudtrail': boto3.client('cloudtrail', region_name=self.region)
         }
         
     def create_demo_resources(self):
@@ -104,7 +97,7 @@ class IncidentGenerator:
         # Create CloudWatch Log Group
         try:
             self.clients['logs'].create_log_group(
-                logGroupName=self.demo_resources['log_group_name']
+                logGroupName=st.session_state.demo_resources['log_group_name']
             )
         except self.clients['logs'].exceptions.ResourceAlreadyExistsException:
             pass
@@ -115,13 +108,13 @@ class IncidentGenerator:
                 GroupName='sre-demo-incident-sg',
                 Description='Demo security group for incident generation'
             )
-            self.demo_resources['security_group_id'] = response['GroupId']
+            st.session_state.demo_resources['security_group_id'] = response['GroupId']
         except ClientError as e:
             if 'InvalidGroup.Duplicate' in str(e):
                 response = self.clients['ec2'].describe_security_groups(
                     GroupNames=['sre-demo-incident-sg']
                 )
-                self.demo_resources['security_group_id'] = response['SecurityGroups'][0]['GroupId']
+                st.session_state.demo_resources['security_group_id'] = response['SecurityGroups'][0]['GroupId']
                 
     def generate_application_logs(self, scenario='error'):
         """Generate application logs in CloudWatch."""
@@ -129,7 +122,7 @@ class IncidentGenerator:
         
         try:
             self.clients['logs'].create_log_stream(
-                logGroupName=self.demo_resources['log_group_name'],
+                logGroupName=st.session_state.demo_resources['log_group_name'],
                 logStreamName=log_stream
             )
         except:
@@ -163,7 +156,7 @@ class IncidentGenerator:
             })
             
         self.clients['logs'].put_log_events(
-            logGroupName=self.demo_resources['log_group_name'],
+            logGroupName=st.session_state.demo_resources['log_group_name'],
             logStreamName=log_stream,
             logEvents=log_events
         )
@@ -193,7 +186,7 @@ class IncidentGenerator:
             
         for metric in metrics_data:
             self.clients['cloudwatch'].put_metric_data(
-                Namespace=self.demo_resources['namespace'],
+                Namespace=st.session_state.demo_resources['namespace'],
                 MetricData=[{
                     'MetricName': metric['MetricName'],
                     'Value': metric['Value'],
@@ -210,13 +203,13 @@ class IncidentGenerator:
         
     def modify_security_group(self, action='add_risky_rule'):
         """Modify security group to generate events."""
-        if not self.demo_resources['security_group_id']:
+        if not st.session_state.demo_resources['security_group_id']:
             return False
             
         try:
             if action == 'add_risky_rule':
                 self.clients['ec2'].authorize_security_group_ingress(
-                    GroupId=self.demo_resources['security_group_id'],
+                    GroupId=st.session_state.demo_resources['security_group_id'],
                     IpPermissions=[{
                         'IpProtocol': 'tcp',
                         'FromPort': 22,
@@ -266,7 +259,7 @@ class IncidentGenerator:
                 OperationalData={
                     '/aws/resources': {
                         'Value': json.dumps([{
-                            'arn': f'arn:aws:logs:{self.region}:123456789012:log-group:{self.demo_resources["log_group_name"]}'
+                            'arn': f'arn:aws:logs:{self.region}:123456789012:log-group:{st.session_state.demo_resources["log_group_name"]}'
                         }])
                     }
                 },
@@ -373,14 +366,14 @@ class EnhancedSREDashboard:
                 
             # Data Sources
             st.markdown("### 📊 Data Sources")
-            st.session_state.include_logs = st.checkbox("CloudWatch Logs", value=True)
-            st.session_state.include_metrics = st.checkbox("CloudWatch Metrics", value=True)
-            st.session_state.include_cloudtrail = st.checkbox("CloudTrail Events", value=True)
-            st.session_state.include_vpc_logs = st.checkbox("VPC Flow Logs", value=True)
-            st.session_state.include_health = st.checkbox("AWS Health", value=True)
+            self.include_logs = st.checkbox("CloudWatch Logs", value=True)
+            self.include_metrics = st.checkbox("CloudWatch Metrics", value=True)
+            self.include_cloudtrail = st.checkbox("CloudTrail Events", value=True)
+            self.include_vpc_logs = st.checkbox("VPC Flow Logs", value=True)
+            self.include_health = st.checkbox("AWS Health", value=True)
             
             # Time Range
-            st.session_state.time_range = st.selectbox(
+            self.time_range = st.selectbox(
                 "Analysis Time Range",
                 ["Last 15 minutes", "Last 30 minutes", "Last 1 hour", "Last 6 hours"]
             )
@@ -489,12 +482,12 @@ class EnhancedSREDashboard:
             "Last 1 hour": 60,
             "Last 6 hours": 360
         }
-        minutes = time_map.get(st.session_state.get('time_range', 'Last 30 minutes'), 30)
+        minutes = time_map.get(self.time_range, 30)
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(minutes=minutes)
         
         # Collect CloudWatch Logs
-        if st.session_state.get('include_logs', True):
+        if self.include_logs:
             try:
                 log_groups = self.logs_client.describe_log_groups(
                     logGroupNamePrefix='/aws/demo/sre'
@@ -512,7 +505,7 @@ class EnhancedSREDashboard:
                 pass
                 
         # Collect CloudWatch Metrics
-        if st.session_state.get('include_metrics', True):
+        if self.include_metrics:
             try:
                 metrics = ['CPUUtilization', 'MemoryUtilization', 'ErrorRate']
                 for metric_name in metrics:

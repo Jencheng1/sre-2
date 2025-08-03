@@ -169,10 +169,8 @@ def analyze_security_incident(log_data, incident_description):
         'recommendations': []
     }
     
-    desc_lower = incident_description.lower()
-    
     # Check for security-related patterns in description
-    if 'security group' in desc_lower:
+    if 'security group' in incident_description.lower():
         analysis['root_cause'] = 'Security group misconfiguration detected'
         analysis['evidence'].append('Security group rules modified')
         analysis['impact'].append('Potential unauthorized access to resources')
@@ -183,65 +181,13 @@ def analyze_security_incident(log_data, incident_description):
             'Set up CloudWatch alarms for security group changes'
         ])
         
-    # Check for unauthorized access attempts
-    elif 'unauthorized' in desc_lower or 'attack' in desc_lower:
-        analysis['root_cause'] = 'Unauthorized access attempts detected'
-        analysis['evidence'].append('Multiple failed authentication attempts logged')
-        analysis['evidence'].append('Suspicious access patterns detected')
-        analysis['impact'].append('Potential security breach attempt')
-        analysis['impact'].append('Resource access may be compromised')
-        analysis['recommendations'].extend([
-            'Enable AWS GuardDuty for real-time threat detection',
-            'Review and rotate all access credentials',
-            'Implement AWS WAF to block malicious requests',
-            'Enable MFA for all user accounts',
-            'Review CloudTrail logs for compromised credentials'
-        ])
-        
-    # Check for API failures (additional evidence)
-    if 'api failures' in desc_lower or 'api' in desc_lower:
-        if analysis['root_cause'] == 'Unknown':
-            analysis['root_cause'] = 'API access failures indicating potential security issue'
-        analysis['evidence'].extend([
-            'Multiple API access failures detected',
-            'S3 bucket access denied errors',
-            'Lambda invocation failures'
-        ])
+    # Check for API failures
+    if 'api failures' in incident_description.lower():
+        analysis['evidence'].append('Multiple API access failures detected')
+        analysis['evidence'].append('S3 bucket access denied errors')
+        analysis['evidence'].append('Lambda invocation failures')
         analysis['impact'].append('Potential security scan or unauthorized access attempt')
-        analysis['recommendations'].append('Review CloudTrail logs for source IPs and access patterns')
-        
-    # Check log data for security patterns
-    if log_data and log_data.get('error_count', 0) > 0:
-        for error in log_data.get('error_messages', []):
-            if 'denied' in error.lower() or 'forbidden' in error.lower():
-                if analysis['root_cause'] == 'Unknown':
-                    analysis['root_cause'] = 'Access control violations detected'
-                analysis['evidence'].append(f'Access denied error: {error}')
-                
-    # Default security recommendations if still unknown
-    if analysis['root_cause'] == 'Unknown':
-        # For any security incident, we should provide a meaningful root cause
-        if 'unusual' in desc_lower or 'suspicious' in desc_lower or 'anomaly' in desc_lower:
-            analysis['root_cause'] = 'Unusual activity patterns detected requiring investigation'
-            analysis['evidence'].append('Anomalous behavior detected in system logs')
-            analysis['evidence'].append('Activity deviates from baseline patterns')
-        else:
-            analysis['root_cause'] = 'Security incident detected requiring immediate investigation'
-            analysis['evidence'].append('Security-related keywords detected in incident description')
-            
-        analysis['impact'].extend([
-            'Potential security risk to infrastructure',
-            'Compliance requirements may be affected'
-        ])
-        
-    # Ensure we always have some recommendations for security incidents
-    if not analysis['recommendations']:
-        analysis['recommendations'].extend([
-            'Review CloudTrail logs for unauthorized activity',
-            'Check IAM policies and permissions',
-            'Enable AWS Config to track configuration changes',
-            'Set up CloudWatch alarms for security events'
-        ])
+        analysis['recommendations'].append('Review CloudTrail logs for source IPs')
         
     return analysis
 
@@ -266,66 +212,18 @@ def analyze_outage_incident(metrics_data, log_data):
                 'Set up multi-AZ deployment for high availability',
                 'Create automated rollback procedures'
             ])
-    
-    # If no high error rate, check for other outage indicators
-    if analysis['root_cause'] == 'Unknown':
-        # Check CPU/Memory for resource exhaustion
-        if 'CPUUtilization' in metrics_data:
-            cpu_data = metrics_data['CPUUtilization']['latest']
-            if cpu_data.get('Maximum', 0) > 95:
-                analysis['root_cause'] = 'Service outage due to resource exhaustion'
-                analysis['evidence'].append(f"CPU at critical level: {cpu_data['Maximum']:.1f}%")
-                
-        if 'MemoryUtilization' in metrics_data:
-            mem_data = metrics_data['MemoryUtilization']['latest']
-            if mem_data.get('Maximum', 0) > 95:
-                if analysis['root_cause'] == 'Unknown':
-                    analysis['root_cause'] = 'Service outage due to memory exhaustion'
-                analysis['evidence'].append(f"Memory at critical level: {mem_data['Maximum']:.1f}%")
-                
+            
     # Check for critical errors in logs
     if log_data['error_count'] > 5:
-        if analysis['root_cause'] == 'Unknown':
-            analysis['root_cause'] = 'Service outage due to application errors'
         analysis['evidence'].append(f"{log_data['error_count']} critical errors in logs")
         for error_msg in log_data['error_messages'][:3]:
             analysis['evidence'].append(f"Error: {error_msg}")
             
-    # Check for service unavailable patterns
+    # Check for service unavailable
     for event in log_data.get('recent_events', []):
         if event.get('status_code') == 503:
-            if analysis['root_cause'] == 'Unknown':
-                analysis['root_cause'] = 'Service returning 503 Service Unavailable errors'
             analysis['evidence'].append('Service returning 503 errors')
             analysis['impact'].append('Complete service unavailability')
-        elif event.get('level') == 'FATAL':
-            if analysis['root_cause'] == 'Unknown':
-                analysis['root_cause'] = 'Fatal application error causing service outage'
-            analysis['evidence'].append(f"Fatal error: {event.get('message', 'Unknown')}")
-            
-    # If still unknown but we have evidence, provide general outage diagnosis
-    if analysis['root_cause'] == 'Unknown' and (analysis['evidence'] or log_data['error_count'] > 0):
-        analysis['root_cause'] = 'Service outage detected - requires immediate investigation'
-        analysis['evidence'].append('Service health checks failing')
-        
-    # Ensure we have impact assessment
-    if not analysis['impact']:
-        analysis['impact'].extend([
-            'Users unable to access the service',
-            'Business operations disrupted',
-            'Potential data processing backlog'
-        ])
-        
-    # Ensure we have recommendations
-    if not analysis['recommendations']:
-        analysis['recommendations'].extend([
-            'Restart affected services immediately',
-            'Check application logs for root cause',
-            'Verify database connectivity',
-            'Review recent deployments or configuration changes',
-            'Implement health check monitoring',
-            'Set up automated failover mechanisms'
-        ])
             
     return analysis
 
@@ -421,11 +319,7 @@ def lambda_handler(event, context):
             'analysis': analysis,
             'incident_type': incident_type,
             'monitoring_data': {
-                'metrics': {k: {
-                    'Average': v['latest'].get('Average', 0),
-                    'Maximum': v['latest'].get('Maximum', 0),
-                    'Minimum': v['latest'].get('Minimum', 0)
-                } for k, v in metrics_data.items()},
+                'metrics': {k: v['latest'] for k, v in metrics_data.items()},
                 'logs': {
                     'error_count': log_data['error_count'],
                     'warning_count': log_data['warning_count'],
