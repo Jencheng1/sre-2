@@ -16,6 +16,7 @@ import os
 import sys
 import random
 from botocore.exceptions import ClientError
+from user_guide_content import get_all_guides, get_guide_titles
 
 # Page configuration
 st.set_page_config(
@@ -665,7 +666,7 @@ class EnhancedSREDashboard:
                    unsafe_allow_html=True)
         
         # Main navigation tabs
-        main_tabs = st.tabs(["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics"])
+        main_tabs = st.tabs(["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics", "❓ User Guide"])
         
         with main_tabs[0]:
             if st.session_state.current_incident:
@@ -684,6 +685,9 @@ class EnhancedSREDashboard:
             
         with main_tabs[4]:
             self.render_analytics()
+            
+        with main_tabs[5]:
+            self.render_user_guide()
             
     def render_analyze_tab(self):
         """Render the Analyze Incident tab."""
@@ -2001,6 +2005,113 @@ class EnhancedSREDashboard:
             
         st.markdown("### Incident Trends")
         st.line_chart({"Performance": [10, 15, 13, 18, 20], "Security": [5, 7, 6, 9, 8], "Outage": [2, 3, 2, 4, 3]})
+    
+    def render_user_guide(self):
+        """Render the user guide section."""
+        st.header("❓ User Guide & Documentation")
+        
+        # Create a sidebar for guide navigation
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            st.markdown("### 📑 Guide Topics")
+            
+            # Get all guide titles
+            guides = get_all_guides()
+            guide_titles = get_guide_titles()
+            
+            # Create radio buttons for navigation
+            selected_guide_id = st.radio(
+                "Select a topic:",
+                options=[guide_id for guide_id, _ in guide_titles],
+                format_func=lambda x: next(title for gid, title in guide_titles if gid == x),
+                label_visibility="collapsed"
+            )
+        
+        with col2:
+            # Display selected guide
+            if selected_guide_id:
+                guide = guides.get(selected_guide_id, {})
+                st.markdown(f"## {guide.get('title', 'Guide')}")
+                st.markdown(guide.get('content', 'Content not available'))
+                
+                # Add quick actions based on guide
+                st.markdown("---")
+                st.markdown("### 🚀 Quick Actions")
+                
+                if selected_guide_id == "overview":
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        if st.button("🎮 Generate Test Incident", key="guide_gen_incident"):
+                            st.info("Switch to 'Incident Management' tab to generate incidents")
+                    with col_b:
+                        if st.button("🔍 Analyze Incident", key="guide_analyze"):
+                            st.info("Switch to 'Analyze Incident' tab")
+                    with col_c:
+                        if st.button("📚 Search KB", key="guide_kb"):
+                            st.info("Switch to 'Knowledge Base' tab")
+                            
+                elif selected_guide_id == "incident_analysis":
+                    if st.button("🔍 Go to Analyze Tab", key="guide_go_analyze"):
+                        st.info("Switch to 'Analyze Incident' tab to start")
+                        
+                elif selected_guide_id == "knowledge_management":
+                    if st.button("📚 Go to Knowledge Base", key="guide_go_kb"):
+                        st.info("Switch to 'Knowledge Base' tab to search or add documents")
+                        
+                # Add feedback section
+                st.markdown("---")
+                st.markdown("### 💬 Feedback")
+                feedback = st.text_area("Was this guide helpful? Any suggestions?", key=f"feedback_{selected_guide_id}")
+                if st.button("Submit Feedback", key=f"submit_feedback_{selected_guide_id}"):
+                    st.success("Thank you for your feedback!")
+                    
+        # Add search functionality
+        st.markdown("---")
+        st.markdown("### 🔍 Search Documentation")
+        search_query = st.text_input("Search for specific topics or keywords:", key="guide_search")
+        
+        if search_query:
+            st.markdown("#### Search Results")
+            # Simple search through all guides
+            results = []
+            for guide_id, guide in guides.items():
+                if search_query.lower() in guide.get('content', '').lower() or search_query.lower() in guide.get('title', '').lower():
+                    results.append((guide_id, guide))
+            
+            if results:
+                for guide_id, guide in results:
+                    with st.expander(f"📄 {guide.get('title', 'Guide')}"):
+                        # Show relevant excerpt
+                        content = guide.get('content', '')
+                        # Find and highlight the search term
+                        idx = content.lower().find(search_query.lower())
+                        if idx != -1:
+                            start = max(0, idx - 100)
+                            end = min(len(content), idx + 200)
+                            excerpt = content[start:end]
+                            if start > 0:
+                                excerpt = "..." + excerpt
+                            if end < len(content):
+                                excerpt = excerpt + "..."
+                            st.markdown(excerpt)
+                        st.markdown(f"[View full guide](#) (Select '{guide.get('title', '')}' from the topics)")
+            else:
+                st.info("No results found. Try different keywords.")
+                
+        # Add video tutorials placeholder
+        st.markdown("---")
+        st.markdown("### 🎥 Video Tutorials")
+        st.info("Video tutorials coming soon! Topics will include:")
+        tutorials = [
+            "Getting Started with SRE Copilot (5 min)",
+            "Analyzing Your First Incident (8 min)",
+            "Building an Effective Knowledge Base (10 min)",
+            "Advanced Correlation Techniques (12 min)",
+            "Integrating with Your Tools (15 min)"
+        ]
+        for tutorial in tutorials:
+            st.markdown(f"- 📹 {tutorial}")
 
 def main():
     """Main application entry point."""
