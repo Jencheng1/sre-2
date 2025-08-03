@@ -251,7 +251,7 @@ class MCPComponents:
                 
                 if result["success"]:
                     st.success("New server added successfully!")
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error(f"Error: {result['error']}")
             else:

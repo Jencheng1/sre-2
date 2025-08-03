@@ -84,3 +84,5 @@ cd /home/ec2-user/sre/sre_mcp
 - Region is us-east-1
 - KB uses DynamoDB (no OpenSearch domain needed)
 - Check KNOWLEDGE_BASE_CONTEXT.md for detailed KB info
+## Session Context Saved
+Context saved to PROJECT_CONTEXT.md on 2025-08-03 17:58:16

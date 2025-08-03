@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SRE Copilot - Enhanced Root Cause Analysis Dashboard with MCP Integration
-Integrates real incident generation, AWS data analysis, and external MCP services.
+SRE Copilot - Enhanced Root Cause Analysis Dashboard
+Integrates real incident generation and AWS data analysis using Bedrock agents.
 """
 
 import streamlit as st
@@ -15,36 +15,8 @@ import time
 import os
 import sys
 import random
-import requests
 from botocore.exceptions import ClientError
 from user_guide_content import get_all_guides, get_guide_titles
-from streamlit_key_manager import key_manager
-
-# Add path for MCP modules
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Try importing MCP modules
-try:
-    from feedback.feedback_system import FeedbackSystem
-    from config.mcp_config import MCPConfigManager
-    from enhanced_incident_scenarios import EnhancedIncidentScenarios
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-    print("MCP modules not available - running in standard mode")
-
-# Load MCP ports configuration
-try:
-    with open('mcp_ports.json', 'r') as f:
-        MCP_PORTS = json.load(f)
-except:
-    MCP_PORTS = {
-        'splunk': 9080,
-        'dynatrace': 9081,
-        'servicenow': 9082,
-        'confluence': 9083,
-        'gitlab': 9084
-    }
 
 # Page configuration
 st.set_page_config(
@@ -85,22 +57,6 @@ st.markdown("""
         padding: 1.5rem;
         margin: 1rem 0;
     }
-    .mcp-status {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 5px;
-    }
-    .mcp-online { background-color: #4caf50; }
-    .mcp-offline { background-color: #f44336; }
-    .mcp-warning { background-color: #ff9800; }
-    .feedback-section {
-        background-color: #f5f5f5;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        margin-top: 1rem;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -119,131 +75,6 @@ if 'demo_resources' not in st.session_state:
         'log_group_name': '/aws/demo/sre-incident-generator',
         'namespace': 'SREDemo/Application'
     }
-if 'mcp_enabled' not in st.session_state:
-    st.session_state.mcp_enabled = MCP_AVAILABLE
-if 'feedback_enabled' not in st.session_state:
-    st.session_state.feedback_enabled = MCP_AVAILABLE
-if 'current_analysis_result' not in st.session_state:
-    st.session_state.current_analysis_result = None
-
-# Initialize MCP components if available
-if MCP_AVAILABLE:
-    feedback_system = FeedbackSystem()
-    mcp_config = MCPConfigManager()
-    enhanced_scenarios = EnhancedIncidentScenarios()
-
-# MCP Helper Functions
-def get_mcp_status():
-    """Check status of MCP servers."""
-    if not MCP_AVAILABLE:
-        return {}
-    
-    status = {}
-    for service, port in MCP_PORTS.items():
-        try:
-            if service == 'splunk':
-                response = requests.post(
-                    f"http://localhost:{port}/splunk/search",
-                    json={"query": "test", "time_range": "-1h"},
-                    timeout=1
-                )
-            elif service in ['dynatrace', 'servicenow']:
-                response = requests.get(f"http://localhost:{port}/{service}/incidents", timeout=1)
-            else:
-                response = requests.get(f"http://localhost:{port}/{service}/search?query=test", timeout=1)
-            
-            status[service] = 'online' if response.status_code in [200, 201, 405] else 'error'
-        except:
-            status[service] = 'offline'
-    return status
-
-def display_mcp_data_in_analysis(mcp_data):
-    """Display MCP correlation data in analysis results."""
-    if not mcp_data or not isinstance(mcp_data, dict):
-        return
-    
-    st.markdown("### 🌐 External Service Correlations (MCP)")
-    
-    cols = st.columns(min(len(mcp_data), 3))
-    col_idx = 0
-    
-    for service, data in mcp_data.items():
-        if col_idx >= len(cols):
-            cols = st.columns(min(len(mcp_data) - col_idx, 3))
-            col_idx = 0
-            
-        with cols[col_idx]:
-            status = data.get('status', 'unknown')
-            icon = "✅" if status == 'success' else "❌"
-            
-            st.markdown(f"**{icon} {service.upper()}**")
-            
-            if status == 'success':
-                if service == 'splunk' and 'network_analysis' in data:
-                    st.text(f"High latency hosts: {data['network_analysis'].get('high_latency_hosts', 'N/A')}")
-                elif service == 'dynatrace' and 'mq_metrics' in data:
-                    st.text(f"Queue depth: {data['mq_metrics'].get('queue_depth', 'N/A')}")
-                elif service == 'servicenow':
-                    st.text(f"Related incidents: {data.get('related_incidents', 0)}")
-                    st.text(f"Recent changes: {data.get('recent_changes', 0)}")
-                elif service == 'confluence':
-                    st.text(f"KB articles: {data.get('kb_articles', 0)}")
-                elif service == 'gitlab':
-                    st.text(f"Recent commits: {data.get('recent_commits', 0)}")
-                    if data.get('deployment_found'):
-                        st.warning("Recent deployment detected!")
-            else:
-                st.text("Service unavailable")
-        
-        col_idx += 1
-
-def display_feedback_section(analysis_result, form_key_suffix=""):
-    """Display human-in-the-loop feedback section."""
-    if not MCP_AVAILABLE or not st.session_state.feedback_enabled:
-        return
-    
-    st.markdown("---")
-    st.markdown("### 💬 Feedback & Improvement")
-    
-    # Create unique form key
-    form_key = f"feedback_form_{form_key_suffix}" if form_key_suffix else "feedback_form_default"
-    
-    with st.form(form_key):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            rating = st.slider("Rate the analysis accuracy:", 1, 5, 4)
-            correct_root_cause = st.checkbox("Was the root cause correct?", value=True)
-        
-        with col2:
-            additional_context = st.text_area(
-                "Additional context or corrections:", 
-                placeholder="E.g., The actual issue was..."
-            )
-            
-        suggested_actions = st.text_area(
-            "Suggested actions for similar incidents:",
-            placeholder="E.g., Check X before Y..."
-        )
-        
-        submitted = st.form_submit_button("Submit Feedback")
-        
-        if submitted:
-            feedback_data = {
-                "incident_id": f"INC-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                "analysis_id": analysis_result.get('analysis_id', 'unknown'),
-                "rating": rating,
-                "correct_root_cause": correct_root_cause,
-                "additional_context": additional_context,
-                "suggested_actions": suggested_actions.split('\n') if suggested_actions else []
-            }
-            
-            result = feedback_system.submit_feedback(feedback_data)
-            
-            if result['success']:
-                st.success("Thank you for your feedback! This will help improve future analysis.")
-            else:
-                st.error("Failed to submit feedback. Please try again.")
 
 class IncidentGenerator:
     """Handles real incident generation in AWS."""
@@ -486,16 +317,13 @@ class IncidentGenerator:
             incident_data['components'].append(f"Generated {count} error logs")
             
         # Create OpsItem
-        title = f"Incident: {incident_type.capitalize()} Issue Detected"
-        description = f"Automated incident generated for {incident_type} scenario. Components affected: {', '.join(incident_data['components'])}"
-        severity = '2' if incident_type == 'outage' else '3'
-        
-        ops_item_id = self.create_opsitem(title, description, severity)
+        ops_item_id = self.create_opsitem(
+            f"Incident: {incident_type.capitalize()} Issue Detected",
+            f"Automated incident generated for {incident_type} scenario. Components affected: {', '.join(incident_data['components'])}",
+            severity='2' if incident_type == 'outage' else '3'
+        )
         
         incident_data['ops_item_id'] = ops_item_id
-        incident_data['title'] = title
-        incident_data['description'] = description
-        incident_data['severity'] = severity
         incident_data['end_time'] = datetime.utcnow()
         
         return incident_data
@@ -511,6 +339,7 @@ class EnhancedSREDashboard:
         self.cloudwatch_client = boto3.client('cloudwatch', region_name=self.region)
         self.ssm_client = boto3.client('ssm', region_name=self.region)
         self.incident_generator = IncidentGenerator()
+        self.setup_sidebar()
         
     def setup_sidebar(self):
         """Setup the enhanced sidebar."""
@@ -521,33 +350,13 @@ class EnhancedSREDashboard:
             # Incident Generation Section
             st.markdown("### 🚀 Generate Incident")
             
-            # Add MCP Test Scenarios if available
-            incident_categories = ["Standard AWS", "MCP Integration Test"] if MCP_AVAILABLE else ["Standard AWS"]
-            incident_category = st.selectbox("Incident Category", incident_categories)
+            incident_type = st.selectbox(
+                "Select Incident Type to Generate",
+                ["Performance Degradation", "Security Alert", "Service Outage"]
+            )
             
-            if incident_category == "Standard AWS":
-                incident_type = st.selectbox(
-                    "Select Incident Type to Generate",
-                    ["Performance Degradation", "Security Alert", "Service Outage"]
-                )
-            else:
-                # MCP Test Scenarios
-                mcp_scenarios = enhanced_scenarios.get_scenarios() if MCP_AVAILABLE else []
-                scenario_names = [s['incident']['title'] for s in mcp_scenarios]
-                incident_type = st.selectbox("Select MCP Scenario", scenario_names)
-            
-            # Create unique button key
-            button_key = key_manager.get_unique_key("generate_incident", incident_category, incident_type)
-            
-            # Use callback for button
-            def handle_generate_incident():
+            if st.button("🔥 Generate Real Incident", type="primary", use_container_width=True, key="generate_incident"):
                 self.generate_incident(incident_type)
-            
-            st.button("🔥 Generate Real Incident", 
-                     type="primary", 
-                     use_container_width=True, 
-                     key=button_key,
-                     on_click=handle_generate_incident)
                 
             # Analysis Section
             st.markdown("### 🔍 Analyze Incident")
@@ -557,16 +366,9 @@ class EnhancedSREDashboard:
                 ops_items = [f"{inc['ops_item_id']} - {inc['type']}" for inc in st.session_state.generated_incidents]
                 selected_ops = st.selectbox("Select OpsItem", ops_items)
                 
-                # Create callback for analysis button
-                def handle_run_analysis():
+                if st.button("🤖 Run Root Cause Analysis", type="primary", use_container_width=True, key="run_analysis_sidebar"):
                     ops_item_id = selected_ops.split(' - ')[0]
                     self.run_root_cause_analysis(ops_item_id)
-                
-                st.button("🤖 Run Root Cause Analysis", 
-                         type="primary", 
-                         use_container_width=True, 
-                         key=key_manager.get_unique_key("run_analysis_sidebar", selected_ops),
-                         on_click=handle_run_analysis)
             else:
                 st.info("Generate an incident first to analyze")
                 
@@ -578,23 +380,6 @@ class EnhancedSREDashboard:
             st.session_state.include_vpc_logs = st.checkbox("VPC Flow Logs", value=True)
             st.session_state.include_health = st.checkbox("AWS Health", value=True)
             
-            # MCP Integration Settings
-            if MCP_AVAILABLE:
-                st.markdown("### 🌐 MCP Integration")
-                st.session_state.mcp_enabled = st.checkbox("Enable MCP Correlation", value=True)
-                st.session_state.feedback_enabled = st.checkbox("Enable Human Feedback", value=True)
-                
-                if st.session_state.mcp_enabled:
-                    st.markdown("**MCP Services Status:**")
-                    mcp_status = get_mcp_status()
-                    for service, status in mcp_status.items():
-                        if status == 'online':
-                            st.success(f"✅ {service.upper()}")
-                        elif status == 'error':
-                            st.warning(f"⚠️ {service.upper()}")
-                        else:
-                            st.error(f"❌ {service.upper()}")
-            
             # Time Range
             st.session_state.time_range = st.selectbox(
                 "Analysis Time Range",
@@ -604,68 +389,47 @@ class EnhancedSREDashboard:
             # History
             st.markdown("### 📜 Recent Incidents")
             for i, incident in enumerate(reversed(st.session_state.generated_incidents[-5:])):
-                if st.button(f"📋 {incident['type']} - {incident['start_time'].strftime('%H:%M')}", key=key_manager.get_loop_key("recent_incident", i)):
+                if st.button(f"📋 {incident['type']} - {incident['start_time'].strftime('%H:%M')}", key=f"inc_{i}"):
                     st.session_state.current_incident = incident
                     
     def generate_incident(self, incident_type):
-        """Generate a real incident in AWS or MCP test scenario."""
-        # Use sidebar context for all output
-        with st.sidebar:
-            with st.spinner(f"🔥 Generating {incident_type} incident..."):
-                # Check if this is an MCP scenario
-                if MCP_AVAILABLE and 'enhanced_scenarios' in globals():
-                    mcp_scenarios = enhanced_scenarios.get_scenarios()
-                    if incident_type in [s['incident']['title'] for s in mcp_scenarios]:
-                        # Handle MCP test scenario
-                        scenario = next(s for s in mcp_scenarios if s['incident']['title'] == incident_type)
-                        
-                        # Create MCP test incident
-                        incident_data = {
-                        'type': 'mcp_test',
-                        'ops_item_id': f'MCP-TEST-{datetime.now().strftime("%Y%m%d-%H%M%S")}',
-                        'ui_type': incident_type,
-                        'start_time': datetime.now(),
-                        'scenario_data': scenario,
-                        'description': f"{scenario['incident']['title']}. {' '.join(scenario['incident']['symptoms'])}",
-                        'service': scenario['incident']['service'],
-                        'severity': scenario['incident']['severity']
-                        }
-                        
-                        st.session_state.generated_incidents.append(incident_data)
-                        st.session_state.current_incident = incident_data
-                        
-                        st.success(f"✅ Generated MCP test scenario: {incident_type}")
-                        
-                        # Display scenario details
-                        with st.expander("Scenario Details"):
-                            st.json(scenario['incident'])
-                        return  # Exit after MCP scenario
-                
-                # Original AWS incident generation
-                # Create demo resources if needed
-                self.incident_generator.create_demo_resources()
+        """Generate a real incident in AWS."""
+        with st.spinner(f"🔥 Generating {incident_type} incident..."):
+            # Create demo resources if needed
+            self.incident_generator.create_demo_resources()
             
-                # Map UI types to generator types
-                type_map = {
+            # Map UI types to generator types
+            type_map = {
                 "Performance Degradation": "performance",
                 "Security Alert": "security",
                 "Service Outage": "outage"
             }
             
-                # Generate the incident
-                incident_data = self.incident_generator.generate_correlated_incident(
-                    type_map[incident_type]
-                )
+            # Generate the incident
+            incident_data = self.incident_generator.generate_correlated_incident(
+                type_map[incident_type]
+            )
             
-                # Store incident data
-                incident_data['ui_type'] = incident_type
-                st.session_state.generated_incidents.append(incident_data)
-                st.session_state.current_incident = incident_data
+            # Store incident data
+            incident_data['ui_type'] = incident_type
+            st.session_state.generated_incidents.append(incident_data)
+            st.session_state.current_incident = incident_data
             
-                st.success(f"✅ Incident generated! OpsItem ID: {incident_data['ops_item_id']}")
+            st.success(f"✅ Incident generated! OpsItem ID: {incident_data['ops_item_id']}")
             
-                # Show KB indexing info
-                st.info("🔄 KB: Your incident is being indexed! Check Knowledge Base tab.")
+            # Show KB indexing info
+            with st.info("🔄 Knowledge Base Integration"):
+                st.markdown(f"""
+                **Your incident is being indexed to the Knowledge Base!**
+                
+                In a few seconds, you can:
+                - 🔍 Search for this incident in the KB (Search tab)
+                - 📖 Browse it in the {incident_type.split()[0].lower()} category (Browse tab)
+                - 🤖 Get AI analysis with historical context (Test Analysis tab)
+                
+                **OpsItem ID:** `{incident_data['ops_item_id']}`
+                """)
+            st.balloons()
             
     def determine_incident_type(self, ops_item):
         """Determine the incident type from OpsItem data."""
@@ -693,44 +457,42 @@ class EnhancedSREDashboard:
     
     def run_root_cause_analysis(self, ops_item_id):
         """Run comprehensive root cause analysis."""
-        # Use sidebar for status updates
-        with st.sidebar:
-            with st.spinner("🤖 Running root cause analysis..."):
-                progress_bar = st.progress(0)
-                status_text = st.empty()
+        with st.spinner("🤖 Running root cause analysis..."):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            try:
+                # Step 1: Get OpsItem details
+                status_text.text("Fetching incident details...")
+                progress_bar.progress(10)
                 
-                try:
-                    # Step 1: Get OpsItem details
-                    status_text.text("Fetching incident details...")
-                    progress_bar.progress(10)
-                    
-                    ops_response = self.ssm_client.get_ops_item(OpsItemId=ops_item_id)
-                    ops_item = ops_response['OpsItem']
-                    
-                    # Step 2: Collect data from various sources
-                    status_text.text("Collecting data from AWS services...")
-                    progress_bar.progress(30)
-                    
-                    collected_data = self.collect_comprehensive_data(ops_item)
-                    
-                    # Step 3: Invoke supervisor agent
-                    status_text.text("Invoking AI agents for analysis...")
-                    progress_bar.progress(60)
-                    
-                    analysis_result = self.invoke_supervisor_analysis(ops_item, collected_data)
+                ops_response = self.ssm_client.get_ops_item(OpsItemId=ops_item_id)
+                ops_item = ops_response['OpsItem']
                 
-                    # Check if analysis failed
-                    if 'error' in analysis_result:
-                        st.error(f"Analysis error: {analysis_result['error']}")
-                        # Still store partial results
-                        analysis_result['ai_analysis'] = "Analysis failed. Using fallback analysis based on available data."
+                # Step 2: Collect data from various sources
+                status_text.text("Collecting data from AWS services...")
+                progress_bar.progress(30)
                 
-                    # Step 4: Process results
-                    status_text.text("Processing analysis results...")
-                    progress_bar.progress(90)
+                collected_data = self.collect_comprehensive_data(ops_item)
                 
-                    # Store results
-                    incident_data = {
+                # Step 3: Invoke supervisor agent
+                status_text.text("Invoking AI agents for analysis...")
+                progress_bar.progress(60)
+                
+                analysis_result = self.invoke_supervisor_analysis(ops_item, collected_data)
+                
+                # Check if analysis failed
+                if 'error' in analysis_result:
+                    st.error(f"Analysis error: {analysis_result['error']}")
+                    # Still store partial results
+                    analysis_result['ai_analysis'] = "Analysis failed. Using fallback analysis based on available data."
+                
+                # Step 4: Process results
+                status_text.text("Processing analysis results...")
+                progress_bar.progress(90)
+                
+                # Store results
+                incident_data = {
                     'ops_item_id': ops_item_id,
                     'type': self.determine_incident_type(ops_item),
                     'description': ops_item.get('Description', ''),
@@ -742,26 +504,26 @@ class EnhancedSREDashboard:
                     'operational_data': ops_item.get('OperationalData', {})
                 }
                 
-                    # Add debug info
-                    st.session_state.last_analysis_debug = {
-                        'ops_item_id': ops_item_id,
-                        'analysis_keys': list(analysis_result.keys()) if analysis_result else [],
-                        'has_error': 'error' in analysis_result
-                    }
-                    
-                    st.session_state.current_incident = incident_data
-                    st.session_state.analysis_history.append(incident_data)
-                    
-                    progress_bar.progress(100)
-                    progress_bar.empty()
-                    status_text.empty()
-                    
-                    st.success("✅ Root cause analysis complete!")
-                    
-                except Exception as e:
-                    st.error(f"❌ Analysis failed: {str(e)}")
-                    progress_bar.empty()
-                    status_text.empty()
+                # Add debug info
+                st.session_state.last_analysis_debug = {
+                    'ops_item_id': ops_item_id,
+                    'analysis_keys': list(analysis_result.keys()) if analysis_result else [],
+                    'has_error': 'error' in analysis_result
+                }
+                
+                st.session_state.current_incident = incident_data
+                st.session_state.analysis_history.append(incident_data)
+                
+                progress_bar.progress(100)
+                progress_bar.empty()
+                status_text.empty()
+                
+                st.success("✅ Root cause analysis complete!")
+                
+            except Exception as e:
+                st.error(f"❌ Analysis failed: {str(e)}")
+                progress_bar.empty()
+                status_text.empty()
                 
     def collect_comprehensive_data(self, ops_item):
         """Collect data from multiple AWS services."""
@@ -826,21 +588,14 @@ class EnhancedSREDashboard:
         return data
         
     def invoke_supervisor_analysis(self, ops_item, collected_data):
-        """Invoke the supervisor agent for analysis with optional MCP."""
-        # Check if this is an MCP test incident
-        incident_type = ops_item.get('Title', '').split(' - ')[0] if isinstance(ops_item, dict) else 'unknown'
-        is_mcp_test = incident_type == 'MCP-TEST' or 'mcp_test' in str(ops_item.get('OperationalData', {}))
-        
-        # Build the payload
+        """Invoke the supervisor agent for analysis."""
         payload = {
             'action': 'analyze',
             'incident_description': f"{ops_item.get('Title', '')}. {ops_item.get('Description', '')}",
             'start_time': (datetime.utcnow() - timedelta(hours=1)).isoformat(),
             'end_time': datetime.utcnow().isoformat(),
-            'service': ops_item.get('OperationalData', {}).get('service', {}).get('Value', 'sre-demo-app'),
+            'service': 'sre-demo-app',
             'environment': 'demo',
-            'enable_mcp': st.session_state.get('mcp_enabled', False) and MCP_AVAILABLE,
-            'enable_kb': True,
             'additional_context': {
                 'ops_item_id': ops_item.get('OpsItemId'),
                 'severity': ops_item.get('Severity'),
@@ -851,23 +606,9 @@ class EnhancedSREDashboard:
             }
         }
         
-        # Add MCP scenario data if available
-        if is_mcp_test and 'scenario_data' in ops_item.get('OperationalData', {}):
-            payload['mcp_scenario'] = json.loads(ops_item['OperationalData']['scenario_data']['Value'])
-        
         try:
-            # Determine which Lambda to use
-            lambda_function = 'sre-supervisor-lambda'
-            if st.session_state.get('mcp_enabled', False) and MCP_AVAILABLE:
-                try:
-                    # Check if MCP Lambda exists
-                    self.lambda_client.get_function(FunctionName='sre-supervisor-lambda-mcp')
-                    lambda_function = 'sre-supervisor-lambda-mcp'
-                except:
-                    pass
-            
             response = self.lambda_client.invoke(
-                FunctionName=lambda_function,
+                FunctionName='sre-supervisor-lambda',
                 InvocationType='RequestResponse',
                 Payload=json.dumps(payload)
             )
@@ -875,8 +616,6 @@ class EnhancedSREDashboard:
             result = json.loads(response['Payload'].read())
             if result.get('statusCode') == 200:
                 body = json.loads(result['body']) if isinstance(result['body'], str) else result['body']
-                # Store for feedback
-                st.session_state.current_analysis_result = body
                 return self.parse_supervisor_response(body)
             else:
                 return {'error': 'Analysis failed', 'details': result.get('body')}
@@ -923,19 +662,11 @@ class EnhancedSREDashboard:
         
     def display_dashboard(self):
         """Display the enhanced dashboard."""
-        # Setup sidebar first
-        self.setup_sidebar()
-        
         st.markdown('<h1 class="main-header">🔍 SRE Copilot - Real-Time Root Cause Analysis</h1>', 
                    unsafe_allow_html=True)
         
-        # Main navigation tabs - add MCP tabs if available
-        tab_names = ["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics"]
-        if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
-            tab_names.extend(["🌐 MCP Status", "📈 Feedback Analytics"])
-        tab_names.append("❓ User Guide")
-        
-        main_tabs = st.tabs(tab_names)
+        # Main navigation tabs
+        main_tabs = st.tabs(["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics", "❓ User Guide"])
         
         with main_tabs[0]:
             if st.session_state.current_incident:
@@ -954,19 +685,8 @@ class EnhancedSREDashboard:
             
         with main_tabs[4]:
             self.render_analytics()
-        
-        # Handle MCP tabs if available
-        tab_idx = 5
-        if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
-            with main_tabs[tab_idx]:
-                self.render_mcp_status()
-            tab_idx += 1
             
-            with main_tabs[tab_idx]:
-                self.render_feedback_analytics()
-            tab_idx += 1
-            
-        with main_tabs[tab_idx]:
+        with main_tabs[5]:
             self.render_user_guide()
             
     def render_analyze_tab(self):
@@ -987,7 +707,7 @@ class EnhancedSREDashboard:
                 
                 # Add button to analyze another incident
                 st.markdown("---")
-                if st.button("🔍 Analyze Another Incident", type="secondary", key=key_manager.get_unique_key("analyze_another", "main")):
+                if st.button("🔍 Analyze Another Incident", type="secondary", key="analyze_another"):
                     st.session_state.show_analysis_results = False
                     st.experimental_rerun()
                     
@@ -1023,66 +743,46 @@ class EnhancedSREDashboard:
                 selected = st.selectbox("Select an OpsItem to analyze:", options)
                 
                 if selected == "-- Enter manually --":
-                    ops_item_id = st.text_input("Enter OpsItem ID:", key=key_manager.get_unique_key("manual_opsitem", "with_list"))
+                    ops_item_id = st.text_input("Enter OpsItem ID:", key="manual_opsitem_with_list")
                 else:
                     ops_item_id = selected.split(' - ')[0]
                     
-                # Create callback for analyze button
-                def handle_analyze_selected():
+                if st.button("🤖 Analyze Root Cause", type="primary", use_container_width=True, key="analyze_selected"):
                     if ops_item_id:
-                        with st.sidebar:
-                            st.info(f"Starting analysis for: {ops_item_id}")
                         self.run_root_cause_analysis(ops_item_id)
                         # Set flag to show results
                         st.session_state.show_analysis_results = True
+                        st.experimental_rerun()
                     else:
                         st.warning("Please enter or select an OpsItem ID")
-                
-                st.button("🤖 Analyze Root Cause", 
-                         type="primary", 
-                         use_container_width=True, 
-                         key=key_manager.get_unique_key("analyze_selected", selected),
-                         on_click=handle_analyze_selected)
                         
             else:
                 st.warning("No open OpsItems found. Enter an OpsItem ID manually.")
-                ops_item_id = st.text_input("Enter OpsItem ID:", key=key_manager.get_unique_key("manual_opsitem", "no_items"))
+                ops_item_id = st.text_input("Enter OpsItem ID:", key="manual_opsitem_no_items")
                 
-                # Create callback for manual analyze button
-                def handle_analyze_manual():
+                if st.button("🤖 Analyze Root Cause", type="primary", use_container_width=True, key="analyze_manual_no_items"):
                     if ops_item_id:
                         self.run_root_cause_analysis(ops_item_id)
                         # Set flag to show results
                         st.session_state.show_analysis_results = True
+                        st.experimental_rerun()
                     else:
                         st.warning("Please enter an OpsItem ID")
-                
-                st.button("🤖 Analyze Root Cause", 
-                         type="primary", 
-                         use_container_width=True, 
-                         key=key_manager.get_unique_key("analyze_manual", "no_items"),
-                         on_click=handle_analyze_manual)
                         
         except Exception as e:
             st.error(f"Error fetching OpsItems: {str(e)}")
             
             # Fallback to manual entry
-            ops_item_id = st.text_input("Enter OpsItem ID:", key=key_manager.get_unique_key("manual_opsitem", "error"))
+            ops_item_id = st.text_input("Enter OpsItem ID:", key="manual_opsitem_error")
             
-            # Create callback for error case analyze button
-            def handle_analyze_error():
+            if st.button("🤖 Analyze Root Cause", type="primary", use_container_width=True, key="analyze_error"):
                 if ops_item_id:
                     self.run_root_cause_analysis(ops_item_id)
                     # Set flag to show results
                     st.session_state.show_analysis_results = True
+                    st.experimental_rerun()
                 else:
                     st.warning("Please enter an OpsItem ID")
-            
-            st.button("🤖 Analyze Root Cause", 
-                     type="primary", 
-                     use_container_width=True, 
-                     key=key_manager.get_unique_key("analyze", "error"),
-                     on_click=handle_analyze_error)
     
     def display_welcome(self):
         """Display enhanced welcome screen."""
@@ -1203,14 +903,10 @@ class EnhancedSREDashboard:
             st.info("📊 Run root cause analysis to see detailed results")
             
     def display_root_cause(self, incident):
-        """Display root cause analysis with MCP data."""
+        """Display root cause analysis."""
         st.markdown("### 🎯 Root Cause Analysis")
         
         analysis = incident.get('analysis', {})
-        
-        # Display MCP data if available
-        if 'mcp_data_summary' in analysis and st.session_state.get('mcp_enabled', False):
-            display_mcp_data_in_analysis(analysis['mcp_data_summary'])
         
         # Business Impact Section
         st.markdown("#### 💼 Business Impact")
@@ -1260,18 +956,6 @@ class EnhancedSREDashboard:
             st.markdown("#### 🤖 AI-Powered Analysis")
             with st.expander("View Full AI Analysis", expanded=True):
                 st.text(analysis['ai_analysis'])
-        
-        # Add feedback section if enabled
-        if st.session_state.get('feedback_enabled', False) and MCP_AVAILABLE:
-            # Create unique key based on incident details and tab context
-            incident_id = incident.get('ops_item_id', '')
-            incident_type = incident.get('type', 'unknown')
-            # Use a counter to ensure uniqueness even within the same tab
-            if 'feedback_counter' not in st.session_state:
-                st.session_state.feedback_counter = 0
-            st.session_state.feedback_counter += 1
-            unique_key = f"{incident_id}_{incident_type}_rootcause_tab_{st.session_state.feedback_counter}".replace('-', '_').replace(' ', '_').replace(':', '')
-            display_feedback_section(analysis, form_key_suffix=unique_key)
                 
         # Root Cause
         st.markdown("#### 🔍 Identified Root Cause")
@@ -1520,23 +1204,22 @@ class EnhancedSREDashboard:
             st.info(f"{i}. {rec}")
             
         # Generate unique suffix for button keys based on incident context
-        # Use key_manager to ensure uniqueness
+        # Use ops_item_id if available, otherwise use a combination of type and timestamp
         incident_id = incident.get('ops_item_id', '')
         incident_type = incident.get('type', 'unknown')
+        timestamp = incident.get('time', datetime.now().strftime('%Y%m%d%H%M%S'))
+        key_suffix = f"{incident_id}_{incident_type}_{timestamp}".replace('-', '_').replace(' ', '_').replace(':', '')
         
-        # Action buttons with unique keys using key_manager
+        # Action buttons with unique keys
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("📧 Create JIRA Ticket", use_container_width=True, 
-                        key=key_manager.get_unique_key("create_jira", incident_id, incident_type, "recommendations")):
+            if st.button("📧 Create JIRA Ticket", use_container_width=True, key=f"create_jira_{key_suffix}"):
                 st.success("✅ Ticket created")
         with col2:
-            if st.button("📢 Send to Slack", use_container_width=True, 
-                        key=key_manager.get_unique_key("send_slack", incident_id, incident_type, "recommendations")):
+            if st.button("📢 Send to Slack", use_container_width=True, key=f"send_slack_{key_suffix}"):
                 st.success("✅ Notification sent")
         with col3:
-            if st.button("📄 Export Report", use_container_width=True, 
-                        key=key_manager.get_unique_key("export_report", incident_id, incident_type, "recommendations")):
+            if st.button("📄 Export Report", use_container_width=True, key=f"export_report_{key_suffix}"):
                 st.success("✅ Report exported")
                 
     def display_metrics_analysis(self, incident):
@@ -1680,10 +1363,6 @@ class EnhancedSREDashboard:
         """Render knowledge base search interface."""
         st.subheader("Search Knowledge Base")
         
-        # Initialize session state if needed
-        if 'kb_search_results' not in st.session_state:
-            st.session_state.kb_search_results = None
-        
         # Add incident dropdown for demo purposes
         st.info("💡 **Demo Tip**: Select a recent incident and click 'Load Query' to automatically populate the search")
         
@@ -1761,45 +1440,15 @@ class EnhancedSREDashboard:
         with col2:
             max_results = st.number_input("Max Results", min_value=1, max_value=20, value=5)
             
-        # Simple button test - bypass key manager temporarily
-        if st.button("🔍 Search", type="primary", key="simple_search_button"):
-            st.write("🔍 DEBUG: Search button clicked!")
+        if st.button("🔍 Search", type="primary", key="kb_search_button"):
             # Always use the current query value
             if query:
-                st.write(f"🔍 DEBUG: Calling search with query: {query}")
                 self.search_knowledge_base(search_type, query, category, max_results)
             else:
                 st.warning("Please enter a search query")
-        
-        # Display results if available in session state
-        st.write(f"🔍 DEBUG: Checking session state - kb_search_results exists: {'kb_search_results' in st.session_state}")
-        if 'kb_search_results' in st.session_state:
-            st.write(f"🔍 DEBUG: kb_search_results value: {st.session_state.kb_search_results is not None}")
-            if st.session_state.kb_search_results:
-                st.write("🔍 DEBUG: Calling display_search_results")
-                self.display_search_results(st.session_state.kb_search_results)
-            else:
-                st.write("🔍 DEBUG: kb_search_results is None/empty")
-        else:
-            st.write("🔍 DEBUG: kb_search_results not in session state")
-        
-        # Debug info
-        with st.expander("🔍 Debug Info", expanded=False):
-            st.write("**Session State Debug:**")
-            st.write(f"kb_search_results exists: {'kb_search_results' in st.session_state}")
-            if 'kb_search_results' in st.session_state:
-                st.write(f"kb_search_results value: {st.session_state.kb_search_results is not None}")
-                if st.session_state.kb_search_results:
-                    st.write(f"Type: {st.session_state.kb_search_results.get('type')}")
-                    st.write(f"Has body: {'body' in st.session_state.kb_search_results}")
-                    if 'body' in st.session_state.kb_search_results:
-                        body = st.session_state.kb_search_results['body']
-                        st.write(f"Results count: {len(body.get('results', []))}")
                 
     def search_knowledge_base(self, search_type, query, category, max_results):
         """Search the knowledge base."""
-        st.write("🔍 DEBUG: search_knowledge_base called")
-        st.write(f"🔍 DEBUG: search_type={search_type}, query={query}")
         with st.spinner("Searching knowledge base..."):
             try:
                 # Prepare the action based on search type
@@ -1836,124 +1485,66 @@ class EnhancedSREDashboard:
                 
                 result = json.loads(response['Payload'].read())
                 
-                st.write(f"🔍 DEBUG: Lambda response status: {result.get('statusCode')}")
                 if result.get('statusCode') == 200:
                     body = json.loads(result['body'])
-                    st.write(f"🔍 DEBUG: Lambda body has {len(body.get('results', []))} results")
                     
-                    # Store results in session state
-                    st.session_state.kb_search_results = {
-                        'type': action,
-                        'body': body,
-                        'timestamp': datetime.now()
-                    }
-                    st.write("🔍 DEBUG: Results stored in session state")
-                    # Don't call rerun - let natural flow handle it
+                    if action == "get_resolution" and body.get('guide'):
+                        # Display single resolution guide
+                        guide = body['guide']
+                        with st.expander(f"📋 {guide['title']}", expanded=True):
+                            st.markdown(guide['content'])
+                    else:
+                        # Display search results
+                        results = body.get('results', [])
+                        st.success(f"Found {len(results)} results")
+                        
+                        # Group results by type for better visualization
+                        incidents = [r for r in results if r['metadata'].get('type') == 'incident']
+                        best_practices = [r for r in results if r['metadata'].get('type') == 'best_practice']
+                        resolutions = [r for r in results if r['metadata'].get('type') == 'resolution_guide']
+                        
+                        # Display incidents
+                        if incidents:
+                            st.markdown("### 🚨 Similar Incidents")
+                            for idx, doc in enumerate(incidents, 1):
+                                with st.expander(f"{idx}. {doc['title']} (Similarity: {doc.get('score', 0):.2f})"):
+                                    st.markdown(f"**Category:** {doc['metadata'].get('category', 'N/A')}")
+                                    
+                                    # Check for change correlation
+                                    if 'change_id' in doc['metadata']:
+                                        st.error(f"🔧 **Caused by Change:** {doc['metadata']['change_id']}")
+                                    
+                                    st.markdown("**Description:**")
+                                    st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
+                                    
+                                    # Show resolution if available
+                                    if 'resolution' in doc['metadata']:
+                                        st.success(f"✅ **Resolution:** {doc['metadata']['resolution']}")
+                        
+                        # Display best practices
+                        if best_practices:
+                            st.markdown("### 📚 Related Best Practices")
+                            for idx, doc in enumerate(best_practices, 1):
+                                with st.expander(f"{idx}. {doc['title']}"):
+                                    if doc['metadata'].get('tags'):
+                                        st.markdown(f"**Tags:** {', '.join(doc['metadata']['tags'])}")
+                                    st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
+                        
+                        # Display resolution guides
+                        if resolutions:
+                            st.markdown("### 🔧 Resolution Guides")
+                            for idx, doc in enumerate(resolutions, 1):
+                                with st.expander(f"{idx}. {doc['title']}"):
+                                    st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
                 else:
                     st.error(f"Search failed: {result.get('body')}")
-                    st.session_state.kb_search_results = None
                     
             except Exception as e:
                 st.error(f"Error searching knowledge base: {str(e)}")
-                st.write(f"🔍 DEBUG: Exception in search: {str(e)}")
-                st.session_state.kb_search_results = None
-    
-    def display_search_results(self, results_data):
-        """Display search results from session state."""
-        st.write("🔍 DEBUG: display_search_results called")
-        st.write(f"🔍 DEBUG: results_data = {results_data is not None}")
-        
-        if not results_data:
-            st.write("🔍 DEBUG: results_data is None/empty - returning")
-            return
-            
-        st.write(f"🔍 DEBUG: results_data keys = {list(results_data.keys())}")
-        action = results_data['type']
-        body = results_data['body']
-        
-        st.write(f"🔍 DEBUG: action = {action}")
-        st.write(f"🔍 DEBUG: body keys = {list(body.keys())}")
-        
-        if action == "get_resolution" and body.get('guide'):
-            # Display single resolution guide
-            guide = body['guide']
-            with st.expander(f"📋 {guide['title']}", expanded=True):
-                st.markdown(guide['content'])
-        else:
-            # Display search results
-            results = body.get('results', [])
-            st.write(f"🔍 DEBUG: Found {len(results)} results")
-            st.success(f"Found {len(results)} results")
-            
-            # Group results by type for better visualization
-            st.write("🔍 DEBUG: Starting result grouping...")
-            incidents = [r for r in results if r['metadata'].get('type') == 'incident']
-            best_practices = [r for r in results if r['metadata'].get('type') == 'best_practice']
-            resolutions = [r for r in results if r['metadata'].get('type') == 'resolution_guide']
-            
-            st.write(f"🔍 DEBUG: Grouped - Incidents: {len(incidents)}, Best Practices: {len(best_practices)}, Resolutions: {len(resolutions)}")
-            
-            # Display incidents
-            if incidents:
-                st.write("🔍 DEBUG: Displaying incidents section")
-                st.markdown("### 🚨 Similar Incidents")
-                for idx, doc in enumerate(incidents, 1):
-                    st.write(f"🔍 DEBUG: Displaying incident {idx}: {doc['title']}")
-                    
-                    # Safe score handling
-                    score = doc.get('score', 0)
-                    if not isinstance(score, (int, float)) or score != score or score == float('inf') or score == float('-inf'):
-                        score_str = "N/A"
-                    else:
-                        score_str = f"{float(score):.2f}"
-                    
-                    with st.expander(f"{idx}. {doc['title']} (Similarity: {score_str})"):
-                        st.markdown(f"**Category:** {doc['metadata'].get('category', 'N/A')}")
-                        
-                        # Check for change correlation
-                        if 'change_id' in doc['metadata']:
-                            st.error(f"🔧 **Caused by Change:** {doc['metadata']['change_id']}")
-                        
-                        st.markdown("**Description:**")
-                        st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
-                        
-                        # Show resolution if available
-                        if 'resolution' in doc['metadata']:
-                            st.success(f"✅ **Resolution:** {doc['metadata']['resolution']}")
-            else:
-                st.write("🔍 DEBUG: No incidents to display")
-            
-            # Display best practices
-            if best_practices:
-                st.write("🔍 DEBUG: Displaying best practices section")
-                st.markdown("### 📚 Related Best Practices")
-                for idx, doc in enumerate(best_practices, 1):
-                    st.write(f"🔍 DEBUG: Displaying best practice {idx}: {doc['title']}")
-                    with st.expander(f"{idx}. {doc['title']}"):
-                        if doc['metadata'].get('tags'):
-                            st.markdown(f"**Tags:** {', '.join(doc['metadata']['tags'])}")
-                        st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
-            else:
-                st.write("🔍 DEBUG: No best practices to display")
-            
-            # Display resolution guides
-            if resolutions:
-                st.write("🔍 DEBUG: Displaying resolution guides section")
-                st.markdown("### 🔧 Resolution Guides")
-                for idx, doc in enumerate(resolutions, 1):
-                    st.write(f"🔍 DEBUG: Displaying resolution guide {idx}: {doc['title']}")
-                    with st.expander(f"{idx}. {doc['title']}"):
-                        st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
-            else:
-                st.write("🔍 DEBUG: No resolution guides to display")
                 
     def render_kb_browse(self):
         """Browse knowledge base by category."""
         st.subheader("Browse Knowledge Base")
-        
-        # Initialize session state if needed
-        if 'kb_browse_results' not in st.session_state:
-            st.session_state.kb_browse_results = None
         
         # Add an "All" option to browse all categories
         category = st.selectbox(
@@ -1967,38 +1558,11 @@ class EnhancedSREDashboard:
             horizontal=True
         )
         
-        # Simple button test - bypass key manager temporarily
-        if st.button("📖 Browse", key="simple_browse_button"):
-            st.write("🔍 DEBUG: Browse button clicked!")
-            st.write(f"🔍 DEBUG: Browsing category={category}, doc_type={doc_type}")
+        if st.button("📖 Browse", key="kb_browse_button"):
             self.browse_knowledge_base(category, doc_type)
-        
-        # Display browse results if available
-        st.write(f"🔍 DEBUG: Checking browse session state - kb_browse_results exists: {'kb_browse_results' in st.session_state}")
-        if 'kb_browse_results' in st.session_state:
-            st.write(f"🔍 DEBUG: kb_browse_results value: {st.session_state.kb_browse_results is not None}")
-            if st.session_state.kb_browse_results:
-                st.write("🔍 DEBUG: Calling display_browse_results")
-                self.display_browse_results(st.session_state.kb_browse_results)
-            else:
-                st.write("🔍 DEBUG: kb_browse_results is None/empty")
-        else:
-            st.write("🔍 DEBUG: kb_browse_results not in session state")
-        
-        # Debug info
-        with st.expander("🔍 Browse Debug Info", expanded=False):
-            st.write("**Session State Debug:**")
-            st.write(f"kb_browse_results exists: {'kb_browse_results' in st.session_state}")
-            if 'kb_browse_results' in st.session_state:
-                st.write(f"kb_browse_results value: {st.session_state.kb_browse_results is not None}")
-                if st.session_state.kb_browse_results:
-                    st.write(f"Results count: {len(st.session_state.kb_browse_results.get('results', []))}")
-                    st.write(f"Category: {st.session_state.kb_browse_results.get('category')}")
             
     def browse_knowledge_base(self, category, doc_type):
         """Browse documents by category."""
-        st.write("🔍 DEBUG: browse_knowledge_base called")
-        st.write(f"🔍 DEBUG: category={category}, doc_type={doc_type}")
         with st.spinner("Browsing knowledge base..."):
             try:
                 lambda_client = boto3.client('lambda', region_name=self.region)
@@ -2017,103 +1581,78 @@ class EnhancedSREDashboard:
                 
                 result = json.loads(response['Payload'].read())
                 
-                st.write(f"🔍 DEBUG: Browse Lambda response status: {result.get('statusCode')}")
                 if result.get('statusCode') == 200:
                     body = json.loads(result['body'])
                     all_results = body.get('results', [])
-                    st.write(f"🔍 DEBUG: Browse Lambda body has {len(all_results)} results")
                     
-                    # Store in session state
-                    st.session_state.kb_browse_results = {
-                        'results': all_results,
-                        'category': category,
-                        'doc_type': doc_type,
-                        'timestamp': datetime.now()
-                    }
-                    st.write("🔍 DEBUG: Browse results stored in session state")
-                    # Don't call rerun - let natural flow handle it
+                    # Display results
+                    if all_results:
+                        category_display = "all categories" if category == "All" else f"{category} category"
+                        st.success(f"Found {len(all_results)} documents in {category_display}")
+                        
+                        # Group by type
+                        by_type = {}
+                        for doc in all_results:
+                            doc_type = doc.get('metadata', {}).get('type', 'unknown')
+                            if doc_type not in by_type:
+                                by_type[doc_type] = []
+                            by_type[doc_type].append(doc)
+                        
+                        # Display each type
+                        type_order = ['incident', 'best_practice', 'resolution_guide']
+                        for doc_type in type_order:
+                            if doc_type in by_type:
+                                docs = by_type[doc_type]
+                                type_emoji = {
+                                    'incident': '🚨',
+                                    'best_practice': '📚',
+                                    'resolution_guide': '🔧'
+                                }.get(doc_type, '📄')
+                                
+                                st.markdown(f"### {type_emoji} {doc_type.replace('_', ' ').title()}s ({len(docs)})")
+                                
+                                for doc in docs:
+                                    with st.expander(f"{doc['title']} ({doc['document_id']})"):
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            st.markdown(f"**Category:** {doc.get('metadata', {}).get('category', 'N/A')}")
+                                            st.markdown(f"**Tags:** {', '.join(doc.get('metadata', {}).get('tags', []))}")
+                                        with col2:
+                                            if doc.get('metadata', {}).get('severity'):
+                                                severity_color = {
+                                                    'high': '🔴',
+                                                    'medium': '🟡',
+                                                    'low': '🟢'
+                                                }.get(doc['metadata']['severity'], '⚪')
+                                                st.markdown(f"**Severity:** {severity_color} {doc['metadata']['severity']}")
+                                        
+                                        st.markdown("---")
+                                        
+                                        # Show content
+                                        content = doc['content']
+                                        if len(content) > 1000:
+                                            # Show first 1000 chars with expand option
+                                            st.markdown(content[:1000] + "...")
+                                            if st.button(f"Show full content", key=f"show_{doc['document_id']}"):
+                                                st.markdown(content)
+                                        else:
+                                            st.markdown(content)
+                                        
+                                        # Show metadata
+                                        if doc.get('metadata', {}).get('root_cause'):
+                                            st.info(f"**Root Cause:** {doc['metadata']['root_cause']}")
+                    else:
+                        st.warning(f"No documents found in {category} category")
+                        st.info("Try selecting a different category or adding documents to the knowledge base.")
                 else:
                     st.error(f"Failed to browse documents: {result.get('body')}")
-                    st.session_state.kb_browse_results = None
                     
             except Exception as e:
                 st.error(f"Error browsing knowledge base: {str(e)}")
-                st.write(f"🔍 DEBUG: Exception in browse: {str(e)}")
-                st.session_state.kb_browse_results = None
-    
-    def display_browse_results(self, browse_data):
-        """Display browse results from session state."""
-        if not browse_data:
-            return
         
-        all_results = browse_data['results']
-        category = browse_data['category']
-        
-        if all_results:
-            category_display = "all categories" if category == "All" else f"{category} category"
-            st.success(f"Found {len(all_results)} documents in {category_display}")
-            
-            # Group by type
-            by_type = {}
-            for doc in all_results:
-                doc_type = doc.get('metadata', {}).get('type', 'unknown')
-                if doc_type not in by_type:
-                    by_type[doc_type] = []
-                by_type[doc_type].append(doc)
-            
-            # Display each type
-            type_order = ['incident', 'best_practice', 'resolution_guide']
-            for doc_type in type_order:
-                if doc_type in by_type:
-                    docs = by_type[doc_type]
-                    type_emoji = {
-                        'incident': '🚨',
-                        'best_practice': '📚',
-                        'resolution_guide': '🔧'
-                    }.get(doc_type, '📄')
-                    
-                    st.markdown(f"### {type_emoji} {doc_type.replace('_', ' ').title()}s ({len(docs)})")
-                    
-                    for doc in docs:
-                        with st.expander(f"{doc['title']} ({doc['document_id']})"):
-                            col1, col2 = st.columns([3, 1])
-                            with col1:
-                                st.markdown(f"**Category:** {doc.get('metadata', {}).get('category', 'N/A')}")
-                                st.markdown(f"**Tags:** {', '.join(doc.get('metadata', {}).get('tags', []))}")
-                            with col2:
-                                if doc.get('metadata', {}).get('severity'):
-                                    severity_color = {
-                                        'high': '🔴',
-                                        'medium': '🟡',
-                                        'low': '🟢'
-                                    }.get(doc['metadata']['severity'], '⚪')
-                                    st.markdown(f"**Severity:** {severity_color} {doc['metadata']['severity']}")
-                            
-                            st.markdown("---")
-                            
-                            # Show content
-                            content = doc['content']
-                            if len(content) > 1000:
-                                # Show first 1000 chars
-                                st.markdown(content[:1000] + "...")
-                                st.info("Content truncated. Full content available in the document.")
-                            else:
-                                st.markdown(content)
-                            
-                            # Show metadata
-                            if doc.get('metadata', {}).get('root_cause'):
-                                st.info(f"**Root Cause:** {doc['metadata']['root_cause']}")
-        else:
-            st.warning(f"No documents found in {category} category")
-            st.info("Try selecting a different category or adding documents to the knowledge base.")
-                
     def render_kb_add_document(self):
         """Add new document to knowledge base."""
         st.subheader("Add Document to Knowledge Base")
-        
-        # Initialize session state if needed
-        if 'kb_add_result' not in st.session_state:
-            st.session_state.kb_add_result = None
         
         doc_type = st.selectbox(
             "Document Type",
@@ -2132,18 +1671,11 @@ class EnhancedSREDashboard:
         
         tags = st.text_input("Tags (comma-separated)")
         
-        if st.button("➕ Add Document", key=key_manager.get_tab_key("kb_add_document", "add")):
+        if st.button("➕ Add Document", key="kb_add_document"):
             if all([doc_id, title, category, content]):
                 self.add_to_knowledge_base(doc_id, title, category, content, doc_type, tags)
             else:
                 st.warning("Please fill all required fields")
-        
-        # Display result if available in session state
-        if 'kb_add_result' in st.session_state and st.session_state.kb_add_result:
-            if st.session_state.kb_add_result['success']:
-                st.success(st.session_state.kb_add_result['message'])
-            else:
-                st.error(st.session_state.kb_add_result['message'])
                 
     def add_to_knowledge_base(self, doc_id, title, category, content, doc_type, tags):
         """Add document to knowledge base."""
@@ -2173,29 +1705,16 @@ class EnhancedSREDashboard:
                 result = json.loads(response['Payload'].read())
                 
                 if result.get('statusCode') == 200:
-                    st.session_state.kb_add_result = {
-                        'success': True,
-                        'message': f"✅ Document {doc_id} added successfully!"
-                    }
+                    st.success(f"✅ Document {doc_id} added successfully!")
                 else:
-                    st.session_state.kb_add_result = {
-                        'success': False,
-                        'message': f"Failed to add document: {result.get('body')}"
-                    }
+                    st.error(f"Failed to add document: {result.get('body')}")
                     
             except Exception as e:
-                st.session_state.kb_add_result = {
-                    'success': False,
-                    'message': f"Error adding document: {str(e)}"
-                }
+                st.error(f"Error adding document: {str(e)}")
                 
     def render_kb_test_analysis(self):
         """Test knowledge-based analysis."""
         st.subheader("Test Knowledge-Based Analysis")
-        
-        # Initialize session state if needed
-        if 'kb_analysis_result' not in st.session_state:
-            st.session_state.kb_analysis_result = None
         
         st.info("Enter an incident description to get analysis enriched with knowledge base context")
         
@@ -2210,31 +1729,14 @@ class EnhancedSREDashboard:
             ["performance", "security", "outage", "general"]
         )
         
-        # Simple button test - bypass key manager temporarily
-        if st.button("🧪 Analyze with Knowledge Base", key="simple_analysis_button"):
-            st.write("🔍 DEBUG: Analysis button clicked!")
+        if st.button("🧪 Analyze with Knowledge Base", key="kb_test_analysis"):
             if incident_desc:
-                st.write(f"🔍 DEBUG: Analyzing incident: {incident_desc[:100]}...")
                 self.analyze_with_knowledge_base(incident_desc, incident_type)
             else:
                 st.warning("Please enter an incident description")
-        
-        # Display analysis results if available
-        st.write(f"🔍 DEBUG: Checking analysis session state - kb_analysis_result exists: {'kb_analysis_result' in st.session_state}")
-        if 'kb_analysis_result' in st.session_state:
-            st.write(f"🔍 DEBUG: kb_analysis_result value: {st.session_state.kb_analysis_result is not None}")
-            if st.session_state.kb_analysis_result:
-                st.write("🔍 DEBUG: Calling display_analysis_result")
-                self.display_analysis_result(st.session_state.kb_analysis_result)
-            else:
-                st.write("🔍 DEBUG: kb_analysis_result is None/empty")
-        else:
-            st.write("🔍 DEBUG: kb_analysis_result not in session state")
                 
     def analyze_with_knowledge_base(self, incident_desc, incident_type):
         """Analyze incident using knowledge base context."""
-        st.write("🔍 DEBUG: analyze_with_knowledge_base called")
-        st.write(f"🔍 DEBUG: incident_type={incident_type}")
         with st.spinner("Analyzing with knowledge base context..."):
             try:
                 lambda_client = boto3.client('lambda', region_name=self.region)
@@ -2250,215 +1752,26 @@ class EnhancedSREDashboard:
                 
                 result = json.loads(response['Payload'].read())
                 
-                st.write(f"🔍 DEBUG: Analysis Lambda response status: {result.get('statusCode')}")
                 if result.get('statusCode') == 200:
                     body = json.loads(result['body'])
-                    st.write(f"🔍 DEBUG: Analysis Lambda body keys: {list(body.keys())}")
-                    st.session_state.kb_analysis_result = {
-                        'success': True,
-                        'body': body,
-                        'timestamp': datetime.now()
-                    }
-                    st.write("🔍 DEBUG: Analysis results stored in session state")
+                    
+                    # Display context used
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Similar Incidents", body['context_used']['similar_incidents_count'])
+                    with col2:
+                        st.metric("Best Practices", body['context_used']['best_practices_count'])
+                    with col3:
+                        st.metric("Has Resolution Guide", "✅" if body['context_used']['has_resolution_guide'] else "❌")
+                        
+                    # Display analysis
+                    st.markdown("### Knowledge-Enhanced Analysis")
+                    st.markdown(body['analysis'])
                 else:
-                    st.session_state.kb_analysis_result = {
-                        'success': False,
-                        'error': result.get('body')
-                    }
-                    st.write(f"🔍 DEBUG: Analysis failed with error: {result.get('body')}")
+                    st.error(f"Analysis failed: {result.get('body')}")
                     
             except Exception as e:
-                st.session_state.kb_analysis_result = {
-                    'success': False,
-                    'error': str(e)
-                }
-                st.write(f"🔍 DEBUG: Exception in analysis: {str(e)}")
-    
-    def display_analysis_result(self, result_data):
-        """Display analysis results from session state."""
-        if not result_data:
-            return
-        
-        if result_data['success']:
-            body = result_data['body']
-            
-            # Display context used
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Similar Incidents", body.get('context_used', {}).get('similar_incidents_count', 0))
-            with col2:
-                st.metric("Best Practices", body.get('context_used', {}).get('best_practices_count', 0))
-            with col3:
-                st.metric("Has Resolution Guide", "✅" if body.get('context_used', {}).get('has_resolution_guide', False) else "❌")
-                
-            # Display analysis
-            st.markdown("### Knowledge-Enhanced Analysis")
-            st.markdown(body.get('analysis', 'No analysis available'))
-            
-            # Display similar incidents if available
-            if 'similar_incidents' in body:
-                st.markdown("### 🚨 Similar Incidents")
-                for inc in body['similar_incidents'][:3]:
-                    with st.expander(inc.get('title', 'Unknown')):
-                        st.write(inc.get('content', '')[:500] + "...")
-        else:
-            st.error(f"Analysis failed: {result_data.get('error', 'Unknown error')}")
-    
-    def render_kb_add_document(self):
-        """Render add document to knowledge base interface."""
-        st.subheader("Add Document to Knowledge Base")
-        
-        # Initialize session state if needed
-        if 'kb_add_result' not in st.session_state:
-            st.session_state.kb_add_result = None
-        
-        st.info("Add new documents, best practices, or resolution guides to the knowledge base")
-        
-        # Document form
-        with st.form("add_document_form"):
-            doc_title = st.text_input(
-                "Document Title",
-                placeholder="e.g., Database Performance Troubleshooting Guide"
-            )
-            
-            doc_type = st.selectbox(
-                "Document Type",
-                ["best_practice", "resolution_guide", "incident", "general"]
-            )
-            
-            doc_category = st.selectbox(
-                "Category",
-                ["performance", "security", "outage", "resilience", "data", "general"]
-            )
-            
-            doc_content = st.text_area(
-                "Content",
-                height=200,
-                placeholder="Enter the document content here..."
-            )
-            
-            # Optional metadata
-            st.subheader("Optional Metadata")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                severity = st.selectbox(
-                    "Severity (if applicable)",
-                    ["low", "medium", "high", "critical"],
-                    index=1
-                )
-            
-            with col2:
-                tags_input = st.text_input(
-                    "Tags (comma-separated)",
-                    placeholder="e.g., database, performance, monitoring"
-                )
-            
-            # Submit button
-            submitted = st.form_submit_button("📝 Add Document", type="primary")
-            
-            if submitted:
-                st.write("🔍 DEBUG: Add document form submitted!")
-                if doc_title and doc_content:
-                    st.write(f"🔍 DEBUG: Adding document: {doc_title}")
-                    
-                    # Parse tags
-                    tags = [tag.strip() for tag in tags_input.split(',') if tag.strip()] if tags_input else []
-                    
-                    # Create document object
-                    document = {
-                        'document_id': f"USER_{int(datetime.now().timestamp())}",
-                        'title': doc_title,
-                        'content': doc_content,
-                        'metadata': {
-                            'type': doc_type,
-                            'category': doc_category,
-                            'tags': tags,
-                            'severity': severity,
-                            'created_by': 'user',
-                            'created_at': datetime.now().isoformat()
-                        }
-                    }
-                    
-                    self.add_document_to_kb(document)
-                else:
-                    st.warning("Please enter both title and content")
-        
-        # Display add result if available
-        st.write(f"🔍 DEBUG: Checking add session state - kb_add_result exists: {'kb_add_result' in st.session_state}")
-        if 'kb_add_result' in st.session_state:
-            st.write(f"🔍 DEBUG: kb_add_result value: {st.session_state.kb_add_result is not None}")
-            if st.session_state.kb_add_result:
-                st.write("🔍 DEBUG: Calling display_add_result")
-                self.display_add_result(st.session_state.kb_add_result)
-            else:
-                st.write("🔍 DEBUG: kb_add_result is None/empty")
-        else:
-            st.write("🔍 DEBUG: kb_add_result not in session state")
-    
-    def add_document_to_kb(self, document):
-        """Add a document to the knowledge base."""
-        st.write("🔍 DEBUG: add_document_to_kb called")
-        st.write(f"🔍 DEBUG: document title={document['title']}")
-        
-        with st.spinner("Adding document to knowledge base..."):
-            try:
-                lambda_client = boto3.client('lambda', region_name=self.region)
-                
-                response = lambda_client.invoke(
-                    FunctionName='sre-knowledge-base-agent-lambda',
-                    InvocationType='RequestResponse',
-                    Payload=json.dumps({
-                        'action': 'index_document',
-                        'document': document
-                    })
-                )
-                
-                result = json.loads(response['Payload'].read())
-                
-                st.write(f"🔍 DEBUG: Add document Lambda response status: {result.get('statusCode')}")
-                if result.get('statusCode') == 200:
-                    body = json.loads(result['body'])
-                    st.write(f"🔍 DEBUG: Add document successful")
-                    
-                    st.session_state.kb_add_result = {
-                        'success': True,
-                        'message': body.get('message', 'Document added successfully'),
-                        'document_id': document['document_id'],
-                        'timestamp': datetime.now()
-                    }
-                    st.write("🔍 DEBUG: Add result stored in session state")
-                else:
-                    st.session_state.kb_add_result = {
-                        'success': False,
-                        'error': result.get('body', 'Unknown error')
-                    }
-                    st.write(f"🔍 DEBUG: Add document failed: {result.get('body')}")
-                    
-            except Exception as e:
-                st.session_state.kb_add_result = {
-                    'success': False,
-                    'error': str(e)
-                }
-                st.write(f"🔍 DEBUG: Exception in add document: {str(e)}")
-    
-    def display_add_result(self, result_data):
-        """Display add document result."""
-        st.write("🔍 DEBUG: display_add_result called")
-        
-        if not result_data:
-            st.write("🔍 DEBUG: result_data is empty")
-            return
-        
-        if result_data.get('success'):
-            st.success(f"✅ {result_data.get('message', 'Document added successfully')}")
-            st.info(f"Document ID: {result_data.get('document_id')}")
-            
-            # Clear the result after displaying
-            if st.button("Add Another Document", key="add_another_doc"):
-                st.session_state.kb_add_result = None
-        else:
-            st.error(f"❌ Failed to add document: {result_data.get('error', 'Unknown error')}")
+                st.error(f"Error during analysis: {str(e)}")
                 
     def render_recent_changes(self):
         """Render recent changes tab."""
@@ -2498,7 +1811,7 @@ class EnhancedSREDashboard:
                     )
                 
                 with col2:
-                    if st.button("🔄 Refresh Changes", key=key_manager.get_unique_key("refresh_changes", "main")):
+                    if st.button("🔄 Refresh Changes", key="refresh_changes"):
                         st.experimental_rerun()
                 
                 if selected_change:
@@ -2603,7 +1916,7 @@ class EnhancedSREDashboard:
                 st.info("No recent changes found. Changes are tracked when they have '[CHANGE]' prefix in the title.")
                 
                 # Demo button
-                if st.button("🎭 Create Demo Change", key=key_manager.get_unique_key("create_demo_change", "main")):
+                if st.button("🎭 Create Demo Change", key="create_demo_change"):
                     with st.spinner("Creating demo change..."):
                         from change_incident_demo import ChangeIncidentDemo
                         demo = ChangeIncidentDemo()
@@ -2729,21 +2042,21 @@ class EnhancedSREDashboard:
                 if selected_guide_id == "overview":
                     col_a, col_b, col_c = st.columns(3)
                     with col_a:
-                        if st.button("🎮 Generate Test Incident", key=key_manager.get_unique_key("guide_gen_incident", selected_guide_id)):
+                        if st.button("🎮 Generate Test Incident", key="guide_gen_incident"):
                             st.info("Switch to 'Incident Management' tab to generate incidents")
                     with col_b:
-                        if st.button("🔍 Analyze Incident", key=key_manager.get_unique_key("guide_analyze", selected_guide_id)):
+                        if st.button("🔍 Analyze Incident", key="guide_analyze"):
                             st.info("Switch to 'Analyze Incident' tab")
                     with col_c:
-                        if st.button("📚 Search KB", key=key_manager.get_unique_key("guide_kb", selected_guide_id)):
+                        if st.button("📚 Search KB", key="guide_kb"):
                             st.info("Switch to 'Knowledge Base' tab")
                             
                 elif selected_guide_id == "incident_analysis":
-                    if st.button("🔍 Go to Analyze Tab", key=key_manager.get_unique_key("guide_go_analyze", selected_guide_id)):
+                    if st.button("🔍 Go to Analyze Tab", key="guide_go_analyze"):
                         st.info("Switch to 'Analyze Incident' tab to start")
                         
                 elif selected_guide_id == "knowledge_management":
-                    if st.button("📚 Go to Knowledge Base", key=key_manager.get_unique_key("guide_go_kb", selected_guide_id)):
+                    if st.button("📚 Go to Knowledge Base", key="guide_go_kb"):
                         st.info("Switch to 'Knowledge Base' tab to search or add documents")
                         
                 # Add feedback section
@@ -2756,7 +2069,7 @@ class EnhancedSREDashboard:
         # Add search functionality
         st.markdown("---")
         st.markdown("### 🔍 Search Documentation")
-        search_query = st.text_input("Search for specific topics or keywords:", key=key_manager.get_unique_key("guide_search", "main"))
+        search_query = st.text_input("Search for specific topics or keywords:", key="guide_search")
         
         if search_query:
             st.markdown("#### Search Results")
@@ -2799,374 +2112,6 @@ class EnhancedSREDashboard:
         ]
         for tutorial in tutorials:
             st.markdown(f"- 📹 {tutorial}")
-
-    def render_mcp_status(self):
-        """Render MCP Status page."""
-        st.header("🔌 MCP Services Status")
-        
-        if not MCP_AVAILABLE:
-            st.error("MCP integration is not available. Please check if MCP servers are installed.")
-            return
-            
-        # Check status of each MCP service
-        status = get_mcp_status()
-        
-        # Display status grid
-        st.markdown("### Service Health")
-        cols = st.columns(5)
-        service_icons = {
-            'splunk': '🔍',
-            'dynatrace': '📊',
-            'servicenow': '🎫',
-            'confluence': '📄',
-            'gitlab': '🔧'
-        }
-        
-        for idx, (service, port) in enumerate(MCP_PORTS.items()):
-            with cols[idx % 5]:
-                service_status = status.get(service, 'unknown')
-                if service_status == 'online':
-                    st.success(f"{service_icons.get(service, '🔌')} {service.title()}")
-                    st.caption(f"Port: {port}")
-                elif service_status == 'offline':
-                    st.error(f"{service_icons.get(service, '🔌')} {service.title()}")
-                    st.caption("Offline")
-                else:
-                    st.warning(f"{service_icons.get(service, '🔌')} {service.title()}")
-                    st.caption("Error")
-        
-        # Test data section
-        st.markdown("---")
-        st.markdown("### 🧪 Test MCP Services")
-        
-        # Service selector
-        selected_service = st.selectbox(
-            "Select a service to test:",
-            options=list(MCP_PORTS.keys()),
-            format_func=lambda x: x.title()
-        )
-        
-        # Test buttons based on service
-        if selected_service == 'splunk':
-            st.markdown("#### Splunk Network Latency Search")
-            query = st.text_input("Search Query", value="source=network latency>100", key=key_manager.get_unique_key("splunk_query", selected_service))
-            time_range = st.selectbox("Time Range", ["-1h", "-4h", "-24h", "-7d"])
-            
-            if st.button("Search Splunk", key=key_manager.get_unique_key("search_splunk", selected_service)):
-                with st.spinner("Searching..."):
-                    try:
-                        response = requests.post(
-                            f"http://localhost:{MCP_PORTS['splunk']}/splunk/search",
-                            json={"query": query, "time_range": time_range}
-                        )
-                        if response.status_code == 200:
-                            data = response.json()
-                            st.success(f"Found {len(data.get('results', []))} results")
-                            if data.get('results'):
-                                st.json(data['results'][:5])  # Show first 5
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-                        
-        elif selected_service == 'dynatrace':
-            st.markdown("#### Dynatrace MQ Metrics")
-            queue = st.text_input("Queue Name", value="OrderQueue", key=key_manager.get_unique_key("dynatrace_queue", selected_service))
-            metric = st.selectbox("Metric", ["depth", "latency", "throughput"])
-            
-            if st.button("Get Metrics", key=key_manager.get_unique_key("get_metrics", selected_service)):
-                with st.spinner("Fetching metrics..."):
-                    try:
-                        response = requests.get(
-                            f"http://localhost:{MCP_PORTS['dynatrace']}/dynatrace/metrics",
-                            params={"queue": queue, "metric": metric}
-                        )
-                        if response.status_code == 200:
-                            data = response.json()
-                            st.success("Metrics retrieved successfully")
-                            st.json(data)
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-                        
-        elif selected_service == 'servicenow':
-            st.markdown("#### ServiceNow Incidents")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("List Recent Incidents", key=key_manager.get_unique_key("list_incidents", selected_service)):
-                    with st.spinner("Fetching incidents..."):
-                        try:
-                            response = requests.get(
-                                f"http://localhost:{MCP_PORTS['servicenow']}/servicenow/incidents"
-                            )
-                            if response.status_code == 200:
-                                data = response.json()
-                                st.success(f"Found {len(data)} incidents")
-                                for inc in data[:3]:
-                                    st.info(f"**{inc['number']}**: {inc['short_description']}")
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
-                            
-            with col2:
-                if st.button("List Recent Changes", key=key_manager.get_unique_key("list_changes", selected_service)):
-                    with st.spinner("Fetching changes..."):
-                        try:
-                            response = requests.get(
-                                f"http://localhost:{MCP_PORTS['servicenow']}/servicenow/changes"
-                            )
-                            if response.status_code == 200:
-                                data = response.json()
-                                st.success(f"Found {len(data)} changes")
-                                for chg in data[:3]:
-                                    st.info(f"**{chg['number']}**: {chg['short_description']}")
-                        except Exception as e:
-                            st.error(f"Error: {str(e)}")
-                            
-        elif selected_service == 'confluence':
-            st.markdown("#### Confluence Knowledge Base")
-            search_term = st.text_input("Search Term", value="database performance", key=key_manager.get_unique_key("confluence_search", selected_service))
-            
-            if st.button("Search Confluence", key=key_manager.get_unique_key("search_confluence", selected_service)):
-                with st.spinner("Searching..."):
-                    try:
-                        response = requests.get(
-                            f"http://localhost:{MCP_PORTS['confluence']}/confluence/search",
-                            params={"query": search_term}
-                        )
-                        if response.status_code == 200:
-                            data = response.json()
-                            st.success(f"Found {len(data.get('results', []))} pages")
-                            for page in data.get('results', [])[:3]:
-                                st.info(f"**{page['title']}**\n{page.get('excerpt', '')[:200]}...")
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-                        
-        elif selected_service == 'gitlab':
-            st.markdown("#### GitLab Repository Search")
-            repo = st.text_input("Repository", value="backend/order-service", key=key_manager.get_unique_key("gitlab_repo", selected_service))
-            search = st.text_input("Search Code", value="processOrder", key=key_manager.get_unique_key("gitlab_search", selected_service))
-            
-            if st.button("Search GitLab", key=key_manager.get_unique_key("search_gitlab", selected_service)):
-                with st.spinner("Searching..."):
-                    try:
-                        response = requests.get(
-                            f"http://localhost:{MCP_PORTS['gitlab']}/gitlab/search",
-                            params={"repo": repo, "query": search}
-                        )
-                        if response.status_code == 200:
-                            data = response.json()
-                            st.success(f"Found matches in {len(data.get('results', []))} files")
-                            for result in data.get('results', [])[:3]:
-                                st.code(f"File: {result['file']}\nLine {result['line']}: {result['content']}", language="java")
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-        
-        # Configuration section
-        st.markdown("---")
-        st.markdown("### ⚙️ MCP Configuration")
-        
-        with st.expander("View/Edit MCP Configuration"):
-            config_str = json.dumps(MCP_PORTS, indent=2)
-            new_config = st.text_area("MCP Port Configuration", value=config_str, height=200, key=key_manager.get_unique_key("mcp_config_text", "main"))
-            
-            if st.button("Update Configuration", key=key_manager.get_unique_key("update_mcp_config", "main")):
-                try:
-                    new_ports = json.loads(new_config)
-                    # Save to file
-                    with open('/home/ec2-user/sre/sre_mcp/mcp_ports.json', 'w') as f:
-                        json.dump(new_ports, f, indent=2)
-                    st.success("Configuration updated! Please restart the application.")
-                except Exception as e:
-                    st.error(f"Invalid configuration: {str(e)}")
-    
-    def render_feedback_analytics(self):
-        """Render Feedback Analytics page."""
-        st.header("📊 Human Feedback Analytics")
-        
-        if not MCP_AVAILABLE:
-            st.error("MCP integration is not available.")
-            return
-            
-        try:
-            from feedback.feedback_system import FeedbackSystem
-            feedback_system = FeedbackSystem()
-            
-            # Get feedback stats - use get_recent_feedback with high limit
-            all_feedback = feedback_system.get_recent_feedback(limit=1000)
-            
-            # Overview metrics
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total Feedback", len(all_feedback))
-            
-            with col2:
-                if all_feedback:
-                    helpful_count = sum(1 for f in all_feedback if f.get('helpful', False))
-                    helpful_pct = (helpful_count / len(all_feedback)) * 100
-                    st.metric("Helpful %", f"{helpful_pct:.1f}%")
-                else:
-                    st.metric("Helpful %", "N/A")
-            
-            with col3:
-                if all_feedback:
-                    avg_confidence = sum(f.get('confidence', 0) for f in all_feedback) / len(all_feedback)
-                    st.metric("Avg Confidence", f"{avg_confidence:.1f}/5")
-                else:
-                    st.metric("Avg Confidence", "N/A")
-            
-            with col4:
-                recent_count = sum(1 for f in all_feedback 
-                                 if datetime.fromisoformat(f.get('timestamp', '2020-01-01')) > 
-                                    datetime.now() - timedelta(days=7))
-                st.metric("Last 7 Days", recent_count)
-            
-            # Feedback timeline
-            st.markdown("### 📈 Feedback Timeline")
-            if all_feedback:
-                # Create timeline data
-                df_data = []
-                for feedback in all_feedback:
-                    df_data.append({
-                        'date': datetime.fromisoformat(feedback.get('timestamp', '2020-01-01')).date(),
-                        'helpful': 1 if feedback.get('helpful', False) else 0,
-                        'not_helpful': 1 if not feedback.get('helpful', False) else 0
-                    })
-                
-                df = pd.DataFrame(df_data)
-                daily_stats = df.groupby('date').agg({
-                    'helpful': 'sum',
-                    'not_helpful': 'sum'
-                }).reset_index()
-                
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=daily_stats['date'],
-                    y=daily_stats['helpful'],
-                    mode='lines+markers',
-                    name='Helpful',
-                    line=dict(color='green')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=daily_stats['date'],
-                    y=daily_stats['not_helpful'],
-                    mode='lines+markers',
-                    name='Not Helpful',
-                    line=dict(color='red')
-                ))
-                fig.update_layout(
-                    title="Daily Feedback Trend",
-                    xaxis_title="Date",
-                    yaxis_title="Count",
-                    height=400
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No feedback data available yet")
-            
-            # Recent feedback
-            st.markdown("### 📝 Recent Feedback")
-            if all_feedback:
-                # Sort by timestamp
-                sorted_feedback = sorted(all_feedback, 
-                                       key=lambda x: x.get('timestamp', ''), 
-                                       reverse=True)
-                
-                for feedback in sorted_feedback[:5]:
-                    with st.expander(f"Feedback from {feedback.get('timestamp', 'Unknown')[:19]}"):
-                        col1, col2 = st.columns([3, 1])
-                        
-                        with col1:
-                            st.markdown(f"**Incident ID**: {feedback.get('incident_id', 'Unknown')}")
-                            st.markdown(f"**Feedback**: {feedback.get('feedback_text', 'No feedback text')}")
-                            
-                            # Show corrections if any
-                            corrections = feedback.get('corrections', {})
-                            if corrections:
-                                st.markdown("**Corrections:**")
-                                for key, value in corrections.items():
-                                    st.write(f"- {key}: {value}")
-                        
-                        with col2:
-                            if feedback.get('helpful'):
-                                st.success("✅ Helpful")
-                            else:
-                                st.error("❌ Not Helpful")
-                            
-                            st.metric("Confidence", f"{feedback.get('confidence', 0)}/5")
-            else:
-                st.info("No feedback received yet")
-            
-            # Feedback patterns
-            st.markdown("### 🔍 Common Feedback Patterns")
-            if all_feedback:
-                # Extract common words from feedback
-                from collections import Counter
-                import re
-                
-                all_text = ' '.join(f.get('feedback_text', '') for f in all_feedback)
-                words = re.findall(r'\b\w+\b', all_text.lower())
-                # Filter out common words
-                stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
-                             'of', 'with', 'by', 'from', 'was', 'were', 'been', 'be', 'have', 
-                             'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could',
-                             'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those'}
-                
-                filtered_words = [w for w in words if w not in stop_words and len(w) > 3]
-                word_freq = Counter(filtered_words).most_common(10)
-                
-                if word_freq:
-                    words, counts = zip(*word_freq)
-                    fig = go.Figure(data=[
-                        go.Bar(x=list(words), y=list(counts))
-                    ])
-                    fig.update_layout(
-                        title="Most Common Feedback Terms",
-                        xaxis_title="Terms",
-                        yaxis_title="Frequency",
-                        height=300
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            # Export options
-            st.markdown("---")
-            st.markdown("### 📤 Export Feedback Data")
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("Export as CSV", key=key_manager.get_unique_key("export_csv", "feedback")):
-                    if all_feedback:
-                        df = pd.DataFrame(all_feedback)
-                        csv = df.to_csv(index=False)
-                        st.download_button(
-                            label="Download CSV",
-                            data=csv,
-                            file_name=f"feedback_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                            mime="text/csv"
-                        )
-                    else:
-                        st.warning("No data to export")
-            
-            with col2:
-                if st.button("Export as JSON", key=key_manager.get_unique_key("export_json", "feedback")):
-                    if all_feedback:
-                        json_str = json.dumps(all_feedback, indent=2)
-                        st.download_button(
-                            label="Download JSON",
-                            data=json_str,
-                            file_name=f"feedback_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                            mime="application/json"
-                        )
-                    else:
-                        st.warning("No data to export")
-            
-            with col3:
-                if st.button("Clear All Feedback", key=key_manager.get_unique_key("clear_feedback", "main")):
-                    if st.checkbox("I understand this will delete all feedback data", key=key_manager.get_unique_key("confirm_clear", "feedback")):
-                        # Would implement clear functionality
-                        st.info("Clear functionality would be implemented here")
-                        
-        except Exception as e:
-            st.error(f"Error loading feedback analytics: {str(e)}")
-            st.info("Please ensure the feedback system is properly configured.")
 
 def main():
     """Main application entry point."""

@@ -221,6 +221,14 @@ class ServerlessKnowledgeBase:
                     # Calculate similarity
                     similarity = self.cosine_similarity(query_embedding, full_embedding)
                     
+                    # Ensure score is a valid float (not NaN or Infinity)
+                    if similarity != similarity:  # Check for NaN
+                        similarity = 0.0
+                    elif similarity == float('inf') or similarity == float('-inf'):
+                        similarity = 0.0
+                    else:
+                        similarity = max(0.0, min(1.0, float(similarity)))  # Clamp to [0, 1]
+                    
                     similarities.append({
                         'document': doc,
                         'score': similarity
@@ -232,6 +240,14 @@ class ServerlessKnowledgeBase:
             results = []
             for item in similarities[:k]:
                 doc = item['document']
+                
+                # Ensure score is a valid, finite number
+                score = item['score']
+                if not isinstance(score, (int, float)) or score != score or score == float('inf') or score == float('-inf'):
+                    score = 0.0
+                else:
+                    score = float(score)
+                    
                 results.append({
                     'document_id': doc['document_id'],
                     'title': doc['title'],
@@ -243,7 +259,7 @@ class ServerlessKnowledgeBase:
                         'severity': doc.get('severity'),
                         'root_cause': doc.get('root_cause')
                     },
-                    'score': item['score']
+                    'score': score
                 })
                 
             return results
@@ -575,19 +591,70 @@ def lambda_handler(event, context):
             # Search for resolution guides in the category
             results = kb.search_by_type_and_tags('resolution_guide', [], incident_type)
             
-            # Filter by category
+            # Filter by category (prefer exact match)
             guide = None
+            fallback_guide = None
+            
             for result in results:
-                if result['metadata'].get('category') == incident_type:
+                if result.get('metadata', {}).get('category') == incident_type:
                     guide = result
                     break
+                elif result.get('metadata', {}).get('type') == 'resolution_guide':
+                    # Keep first resolution guide as fallback
+                    if fallback_guide is None:
+                        fallback_guide = result
+                        
+            # If no exact match, use fallback or create a generic guide
+            if guide is None:
+                if fallback_guide:
+                    guide = fallback_guide
+                else:
+                    # Create a generic resolution guide
+                    guide = {
+                        'title': f'Generic Resolution Guide for {incident_type.title()} Issues',
+                        'content': f"""
+Generic Resolution Steps for {incident_type.title()} Issues:
+
+1. **Immediate Assessment**
+   - Check system metrics and alerts
+   - Review recent changes or deployments
+   - Identify affected components
+
+2. **Initial Response**
+   - Implement immediate mitigation if possible
+   - Communicate status to stakeholders
+   - Gather additional diagnostics
+
+3. **Investigation**
+   - Analyze logs and metrics
+   - Check for known issues in knowledge base
+   - Escalate if needed
+
+4. **Resolution**
+   - Apply fix based on root cause
+   - Monitor for improvement
+   - Document resolution steps
+
+5. **Post-Incident**
+   - Conduct post-mortem if significant
+   - Update monitoring and alerting
+   - Add learnings to knowledge base
+   
+For specific guidance, search the knowledge base for similar {incident_type} incidents.
+""",
+                        'metadata': {
+                            'type': 'resolution_guide',
+                            'category': incident_type,
+                            'generated': True
+                        }
+                    }
                     
             return {
                 'statusCode': 200,
                 'body': json.dumps({
                     'incident_type': incident_type,
                     'guide': guide
-                })
+                }, cls=DecimalEncoder)
             }
             
         elif action == 'browse_documents':

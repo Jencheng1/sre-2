@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SRE Copilot - Enhanced Root Cause Analysis Dashboard
-Integrates real incident generation and AWS data analysis using Bedrock agents.
+SRE Copilot - Enhanced Root Cause Analysis Dashboard with MCP Integration
+Integrates real incident generation, AWS data analysis, and external MCP services.
 """
 
 import streamlit as st
@@ -15,7 +15,42 @@ import time
 import os
 import sys
 import random
+import requests
 from botocore.exceptions import ClientError
+
+# Add path for local modules
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Try importing user guide and MCP modules
+try:
+    from user_guide_content import get_all_guides, get_guide_titles
+except:
+    # Fallback if user guide not available
+    def get_all_guides():
+        return {"Getting Started": "Welcome to SRE Copilot!"}
+    def get_guide_titles():
+        return ["Getting Started"]
+
+try:
+    from feedback.feedback_system import FeedbackSystem
+    from config.mcp_config import MCPConfigManager
+    from enhanced_incident_scenarios import EnhancedIncidentScenarios
+    MCP_AVAILABLE = True
+except:
+    MCP_AVAILABLE = False
+
+# Load MCP ports
+try:
+    with open('mcp_ports.json', 'r') as f:
+        MCP_PORTS = json.load(f)
+except:
+    MCP_PORTS = {
+        'splunk': 9080,
+        'dynatrace': 9081,
+        'servicenow': 9082,
+        'confluence': 9083,
+        'gitlab': 9084
+    }
 
 # Page configuration
 st.set_page_config(
@@ -56,6 +91,22 @@ st.markdown("""
         padding: 1.5rem;
         margin: 1rem 0;
     }
+    .mcp-status {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    .mcp-online { background-color: #4caf50; }
+    .mcp-offline { background-color: #f44336; }
+    .mcp-warning { background-color: #ff9800; }
+    .feedback-section {
+        background-color: #f5f5f5;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -74,6 +125,18 @@ if 'demo_resources' not in st.session_state:
         'log_group_name': '/aws/demo/sre-incident-generator',
         'namespace': 'SREDemo/Application'
     }
+if 'mcp_enabled' not in st.session_state:
+    st.session_state.mcp_enabled = MCP_AVAILABLE
+if 'feedback_enabled' not in st.session_state:
+    st.session_state.feedback_enabled = MCP_AVAILABLE
+if 'current_analysis' not in st.session_state:
+    st.session_state.current_analysis = None
+
+# Initialize MCP components if available
+if MCP_AVAILABLE:
+    feedback_system = FeedbackSystem()
+    mcp_config = MCPConfigManager()
+    enhanced_scenarios = EnhancedIncidentScenarios()
 
 class IncidentGenerator:
     """Handles real incident generation in AWS."""
