@@ -1,0 +1,56 @@
+{
+  "test_time": "2025-08-03T03:46:59.819243",
+  "results": [
+    [
+      "Performance Generation",
+      true,
+      "oi-fc3ff2d151a7"
+    ],
+    [
+      "Security Generation",
+      true,
+      "oi-956e581f0ba6"
+    ],
+    [
+      "Outage Generation",
+      true,
+      "oi-09f79b2932a9"
+    ],
+    [
+      "CloudWatch Logs",
+      true,
+      "Verified"
+    ],
+    [
+      "CloudWatch Metrics",
+      true,
+      "Verified"
+    ],
+    [
+      "Root Cause Analysis",
+      true,
+      "Real data"
+    ],
+    [
+      "Agent Integration",
+      false,
+      "Only 1 agents working"
+    ]
+  ],
+  "resources": {
+    "ops_items": [
+      "oi-fc3ff2d151a7",
+      "oi-956e581f0ba6",
+      "oi-09f79b2932a9"
+    ],
+    "log_streams": [
+      "app-20250803034645",
+      "app-20250803034649"
+    ]
+  },
+  "summary": {
+    "total": 7,
+    "passed": 6,
+    "failed": 1
+  }
+}
