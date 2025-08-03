@@ -329,7 +329,34 @@ def analyze_outage_incident(metrics_data, log_data):
             
     return analysis
 
-def generate_root_cause_analysis(incident_type, incident_description, metrics_data, log_data):
+def get_knowledge_base_context(incident_description, incident_type):
+    """Query knowledge base for relevant context."""
+    try:
+        response = lambda_client.invoke(
+            FunctionName='sre-knowledge-base-agent-lambda',
+            InvocationType='RequestResponse',
+            Payload=json.dumps({
+                'action': 'analyze_with_context',
+                'incident_description': incident_description,
+                'incident_type': incident_type
+            })
+        )
+        
+        result = json.loads(response['Payload'].read())
+        
+        if result.get('statusCode') == 200:
+            body = json.loads(result['body'])
+            return {
+                'similar_incidents': body.get('results', [])[:3],
+                'kb_analysis': body.get('analysis', ''),
+                'context_used': body.get('context_used', {})
+            }
+    except Exception as e:
+        logger.warning(f"Could not get KB context: {str(e)}")
+        
+    return {}
+
+def generate_root_cause_analysis(incident_type, incident_description, metrics_data, log_data, kb_context=None):
     """Generate specific root cause analysis based on incident type and data."""
     
     if incident_type == 'performance':
@@ -381,6 +408,10 @@ This analysis correlated data from:
 - Incident Type: {incident_type.capitalize()} incident pattern detected
 """
     
+    # Add knowledge base context if available
+    if kb_context and kb_context.get('kb_analysis'):
+        analysis_text += f"\n\n{kb_context['kb_analysis']}"
+    
     return analysis_text
 
 def lambda_handler(event, context):
@@ -394,6 +425,7 @@ def lambda_handler(event, context):
         service = event.get('service', 'unknown')
         environment = event.get('environment', 'unknown')
         additional_context = event.get('additional_context', {})
+        enable_kb = event.get('enable_kb', True)  # Enable KB by default
         
         # Determine incident type
         incident_type = analyze_incident_type(incident_description)
@@ -407,13 +439,20 @@ def lambda_handler(event, context):
         logger.info("Gathering demo logs...")
         log_data = get_demo_logs()
         
+        # Get knowledge base context if enabled
+        kb_context = {}
+        if enable_kb:
+            logger.info("Querying knowledge base for context...")
+            kb_context = get_knowledge_base_context(incident_description, incident_type)
+        
         # Generate specific root cause analysis
         logger.info("Generating root cause analysis...")
         analysis = generate_root_cause_analysis(
             incident_type, 
             incident_description, 
             metrics_data, 
-            log_data
+            log_data,
+            kb_context
         )
         
         # Prepare response

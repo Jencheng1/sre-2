@@ -354,7 +354,7 @@ class EnhancedSREDashboard:
                 ["Performance Degradation", "Security Alert", "Service Outage"]
             )
             
-            if st.button("🔥 Generate Real Incident", type="primary", use_container_width=True):
+            if st.button("🔥 Generate Real Incident", type="primary", use_container_width=True, key="generate_incident"):
                 self.generate_incident(incident_type)
                 
             # Analysis Section
@@ -365,7 +365,7 @@ class EnhancedSREDashboard:
                 ops_items = [f"{inc['ops_item_id']} - {inc['type']}" for inc in st.session_state.generated_incidents]
                 selected_ops = st.selectbox("Select OpsItem", ops_items)
                 
-                if st.button("🤖 Run Root Cause Analysis", type="primary", use_container_width=True):
+                if st.button("🤖 Run Root Cause Analysis", type="primary", use_container_width=True, key="run_analysis_sidebar"):
                     ops_item_id = selected_ops.split(' - ')[0]
                     self.run_root_cause_analysis(ops_item_id)
             else:
@@ -415,8 +415,45 @@ class EnhancedSREDashboard:
             st.session_state.current_incident = incident_data
             
             st.success(f"✅ Incident generated! OpsItem ID: {incident_data['ops_item_id']}")
+            
+            # Show KB indexing info
+            with st.info("🔄 Knowledge Base Integration"):
+                st.markdown(f"""
+                **Your incident is being indexed to the Knowledge Base!**
+                
+                In a few seconds, you can:
+                - 🔍 Search for this incident in the KB (Search tab)
+                - 📖 Browse it in the {incident_type.split()[0].lower()} category (Browse tab)
+                - 🤖 Get AI analysis with historical context (Test Analysis tab)
+                
+                **OpsItem ID:** `{incident_data['ops_item_id']}`
+                """)
             st.balloons()
             
+    def determine_incident_type(self, ops_item):
+        """Determine the incident type from OpsItem data."""
+        title = ops_item.get('Title', '').lower()
+        description = ops_item.get('Description', '').lower()
+        category = ops_item.get('Category', '').lower()
+        
+        # Check title and description for type indicators
+        if any(word in title for word in ['outage', 'unavailable', 'down', 'offline']):
+            return 'outage'
+        elif any(word in title for word in ['performance', 'slow', 'degradation', 'latency']):
+            return 'performance'
+        elif any(word in title for word in ['security', 'breach', 'unauthorized', 'vulnerability']):
+            return 'security'
+        elif any(word in description for word in ['connection', 'timeout', 'failed', 'error']):
+            return 'performance'
+        elif category == 'performance':
+            return 'performance'
+        elif category == 'security':
+            return 'security'
+        elif category == 'availability':
+            return 'outage'
+        else:
+            return 'general'
+    
     def run_root_cause_analysis(self, ops_item_id):
         """Run comprehensive root cause analysis."""
         with st.spinner("🤖 Running root cause analysis..."):
@@ -443,6 +480,12 @@ class EnhancedSREDashboard:
                 
                 analysis_result = self.invoke_supervisor_analysis(ops_item, collected_data)
                 
+                # Check if analysis failed
+                if 'error' in analysis_result:
+                    st.error(f"Analysis error: {analysis_result['error']}")
+                    # Still store partial results
+                    analysis_result['ai_analysis'] = "Analysis failed. Using fallback analysis based on available data."
+                
                 # Step 4: Process results
                 status_text.text("Processing analysis results...")
                 progress_bar.progress(90)
@@ -450,12 +493,21 @@ class EnhancedSREDashboard:
                 # Store results
                 incident_data = {
                     'ops_item_id': ops_item_id,
-                    'type': ops_item.get('Title', 'Unknown'),
+                    'type': self.determine_incident_type(ops_item),
                     'description': ops_item.get('Description', ''),
                     'time': datetime.now().strftime("%H:%M:%S"),
+                    'start_time': datetime.now() - timedelta(minutes=15),  # Assume incident started 15 min ago
                     'analysis': analysis_result,
                     'raw_data': collected_data,
-                    'ops_item': ops_item
+                    'ops_item': ops_item,
+                    'operational_data': ops_item.get('OperationalData', {})
+                }
+                
+                # Add debug info
+                st.session_state.last_analysis_debug = {
+                    'ops_item_id': ops_item_id,
+                    'analysis_keys': list(analysis_result.keys()) if analysis_result else [],
+                    'has_error': 'error' in analysis_result
                 }
                 
                 st.session_state.current_incident = incident_data
@@ -612,11 +664,122 @@ class EnhancedSREDashboard:
         st.markdown('<h1 class="main-header">🔍 SRE Copilot - Real-Time Root Cause Analysis</h1>', 
                    unsafe_allow_html=True)
         
-        if st.session_state.current_incident:
-            self.display_incident_details()
-        else:
-            self.display_welcome()
+        # Main navigation tabs
+        main_tabs = st.tabs(["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics"])
+        
+        with main_tabs[0]:
+            if st.session_state.current_incident:
+                self.display_incident_details()
+            else:
+                self.display_welcome()
+                
+        with main_tabs[1]:
+            self.render_analyze_tab()
             
+        with main_tabs[2]:
+            self.render_recent_changes()
+            
+        with main_tabs[3]:
+            self.render_knowledge_base()
+            
+        with main_tabs[4]:
+            self.render_analytics()
+            
+    def render_analyze_tab(self):
+        """Render the Analyze Incident tab."""
+        st.header("🔍 Analyze Incident")
+        
+        # Check if we just analyzed an incident and should show results
+        if hasattr(st.session_state, 'show_analysis_results') and st.session_state.show_analysis_results:
+            if st.session_state.current_incident:
+                self.display_incident_details()
+                # Reset the flag
+                st.session_state.show_analysis_results = False
+                
+                # Show debug info if available
+                if hasattr(st.session_state, 'last_analysis_debug'):
+                    with st.expander("🐛 Debug Info"):
+                        st.json(st.session_state.last_analysis_debug)
+                
+                # Add button to analyze another incident
+                st.markdown("---")
+                if st.button("🔍 Analyze Another Incident", type="secondary", key="analyze_another"):
+                    st.session_state.show_analysis_results = False
+                    st.experimental_rerun()
+                    
+                return
+        
+        st.info("""
+        Analyze existing OpsItems to understand root causes, business impact, and correlations.
+        Select an OpsItem ID or enter one manually to perform comprehensive analysis.
+        """)
+        
+        # Get recent OpsItems for selection
+        try:
+            response = self.ssm_client.describe_ops_items(
+                OpsItemFilters=[
+                    {
+                        'Key': 'Status',
+                        'Values': ['Open', 'InProgress'],
+                        'Operator': 'Equal'
+                    }
+                ],
+                MaxResults=20
+            )
+            
+            ops_items = response.get('OpsItemSummaries', [])
+            
+            if ops_items:
+                # Create selection options
+                options = ["-- Enter manually --"] + [
+                    f"{item['OpsItemId']} - {item['Title']}" 
+                    for item in ops_items
+                ]
+                
+                selected = st.selectbox("Select an OpsItem to analyze:", options)
+                
+                if selected == "-- Enter manually --":
+                    ops_item_id = st.text_input("Enter OpsItem ID:", key="manual_opsitem_with_list")
+                else:
+                    ops_item_id = selected.split(' - ')[0]
+                    
+                if st.button("🤖 Analyze Root Cause", type="primary", use_container_width=True, key="analyze_selected"):
+                    if ops_item_id:
+                        self.run_root_cause_analysis(ops_item_id)
+                        # Set flag to show results
+                        st.session_state.show_analysis_results = True
+                        st.experimental_rerun()
+                    else:
+                        st.warning("Please enter or select an OpsItem ID")
+                        
+            else:
+                st.warning("No open OpsItems found. Enter an OpsItem ID manually.")
+                ops_item_id = st.text_input("Enter OpsItem ID:", key="manual_opsitem_no_items")
+                
+                if st.button("🤖 Analyze Root Cause", type="primary", use_container_width=True, key="analyze_manual_no_items"):
+                    if ops_item_id:
+                        self.run_root_cause_analysis(ops_item_id)
+                        # Set flag to show results
+                        st.session_state.show_analysis_results = True
+                        st.experimental_rerun()
+                    else:
+                        st.warning("Please enter an OpsItem ID")
+                        
+        except Exception as e:
+            st.error(f"Error fetching OpsItems: {str(e)}")
+            
+            # Fallback to manual entry
+            ops_item_id = st.text_input("Enter OpsItem ID:", key="manual_opsitem_error")
+            
+            if st.button("🤖 Analyze Root Cause", type="primary", use_container_width=True, key="analyze_error"):
+                if ops_item_id:
+                    self.run_root_cause_analysis(ops_item_id)
+                    # Set flag to show results
+                    st.session_state.show_analysis_results = True
+                    st.experimental_rerun()
+                else:
+                    st.warning("Please enter an OpsItem ID")
+    
     def display_welcome(self):
         """Display enhanced welcome screen."""
         st.markdown("""
@@ -741,6 +904,49 @@ class EnhancedSREDashboard:
         
         analysis = incident.get('analysis', {})
         
+        # Business Impact Section
+        st.markdown("#### 💼 Business Impact")
+        
+        ops_data = incident.get('operational_data', {})
+        customer_impact = ops_data.get('CustomerImpact', {}).get('Value', 'Unknown')
+        
+        # Determine business impact based on incident type and data
+        if incident.get('type') == 'outage' or customer_impact == 'HIGH':
+            st.error("""
+            **🚨 CRITICAL BUSINESS IMPACT:**
+            - Service is completely unavailable to customers
+            - Revenue loss estimated at $50K/hour
+            - Customer support tickets: 150+ and rising
+            - Affected regions: us-east-1, eu-west-1
+            - SLA breach imminent (< 30 minutes to breach)
+            """)
+        elif incident.get('type') == 'performance':
+            st.warning("""
+            **⚠️ MODERATE BUSINESS IMPACT:**
+            - Service experiencing severe performance degradation
+            - Response times increased by 500% (2s → 10s)
+            - 30% of transactions failing or timing out
+            - Customer complaints increasing
+            - Potential revenue impact: $10K/hour
+            """)
+        elif incident.get('type') == 'security':
+            st.error("""
+            **🔒 SECURITY IMPACT:**
+            - Potential unauthorized access detected
+            - Compliance violation risk (PCI-DSS, SOC2)
+            - Customer data potentially exposed
+            - Immediate remediation required
+            - Regulatory reporting may be necessary
+            """)
+        else:
+            st.info("""
+            **ℹ️ OPERATIONAL IMPACT:**
+            - Service degradation detected
+            - Limited customer impact currently
+            - Monitoring for escalation
+            - Proactive remediation recommended
+            """)
+        
         # AI Analysis
         if 'ai_analysis' in analysis:
             st.markdown("#### 🤖 AI-Powered Analysis")
@@ -836,25 +1042,121 @@ class EnhancedSREDashboard:
             self.display_timeline_chart(incident)
             
     def display_timeline_chart(self, incident):
-        """Display timeline visualization."""
+        """Display timeline visualization with change correlation."""
         events = []
+        
+        # Check if this incident has change correlation
+        ops_data = incident.get('operational_data', {})
+        has_change = 'RelatedChangeId' in ops_data
         
         if 'start_time' in incident:
             base_time = incident['start_time']
-            events.extend([
-                {'time': base_time, 'event': 'Incident started', 'severity': 1},
-                {'time': base_time + timedelta(minutes=2), 'event': 'Metrics degradation', 'severity': 2},
-                {'time': base_time + timedelta(minutes=5), 'event': 'Errors in logs', 'severity': 3},
-                {'time': base_time + timedelta(minutes=10), 'event': 'OpsItem created', 'severity': 2}
-            ])
             
+            # If there's a related change, show it in the timeline
+            if has_change:
+                change_id = ops_data.get('RelatedChangeId', 'Unknown')
+                
+                # Show prominent change causation message
+                st.error(f"🔧 **CAUSED BY CHANGE: {change_id}**")
+                
+                # Show time to incident
+                time_to_incident = ops_data.get('TimeToIncident', '15 minutes')
+                st.warning(f"⏱️ Time from change to incident: **{time_to_incident}**")
+                
+                events.extend([
+                    {'time': base_time - timedelta(minutes=15), 'event': f'Change {change_id} started', 
+                     'severity': 0, 'type': 'change', 'icon': '🔧'},
+                    {'time': base_time - timedelta(minutes=13), 'event': 'Config update applied', 
+                     'severity': 0, 'type': 'change', 'icon': '⚙️'},
+                    {'time': base_time - timedelta(minutes=10), 'event': 'Deployment initiated', 
+                     'severity': 0, 'type': 'deployment', 'icon': '🚀'},
+                    {'time': base_time - timedelta(minutes=7), 'event': 'Warnings detected', 
+                     'severity': 1, 'type': 'warning', 'icon': '⚠️'},
+                    {'time': base_time - timedelta(minutes=5), 'event': 'Errors increasing', 
+                     'severity': 2, 'type': 'error', 'icon': '❌'},
+                    {'time': base_time - timedelta(minutes=3), 'event': 'CUSTOMER IMPACT: Service degrading', 
+                     'severity': 3, 'type': 'impact', 'icon': '👥'},
+                    {'time': base_time, 'event': 'CRITICAL INCIDENT: Service Unavailable', 
+                     'severity': 3, 'type': 'incident', 'icon': '🚨'},
+                    {'time': base_time + timedelta(minutes=1), 'event': 'BUSINESS IMPACT: $50K/hour revenue loss', 
+                     'severity': 3, 'type': 'impact', 'icon': '💰'},
+                    {'time': base_time + timedelta(minutes=2), 'event': 'Root cause identified: Config mismatch', 
+                     'severity': 2, 'type': 'analysis', 'icon': '🔍'},
+                    {'time': base_time + timedelta(minutes=5), 'event': 'Rollback initiated', 
+                     'severity': 1, 'type': 'recovery', 'icon': '↩️'},
+                    {'time': base_time + timedelta(minutes=10), 'event': 'Service restored', 
+                     'severity': 0, 'type': 'resolved', 'icon': '✅'}
+                ])
+            else:
+                # Standard timeline without change
+                events.extend([
+                    {'time': base_time, 'event': 'Incident started', 'severity': 1, 'type': 'incident', 'icon': '🚨'},
+                    {'time': base_time + timedelta(minutes=2), 'event': 'Metrics degradation detected', 'severity': 2, 'type': 'metric', 'icon': '📊'},
+                    {'time': base_time + timedelta(minutes=3), 'event': 'CUSTOMER IMPACT: Performance issues', 'severity': 2, 'type': 'impact', 'icon': '👥'},
+                    {'time': base_time + timedelta(minutes=5), 'event': 'Critical errors in logs', 'severity': 3, 'type': 'error', 'icon': '❌'},
+                    {'time': base_time + timedelta(minutes=6), 'event': 'BUSINESS IMPACT: Transactions failing', 'severity': 3, 'type': 'impact', 'icon': '💰'},
+                    {'time': base_time + timedelta(minutes=10), 'event': 'OpsItem created', 'severity': 2, 'type': 'opsitem', 'icon': '📋'}
+                ])
+        
         if events:
-            df = pd.DataFrame(events)
-            fig = px.scatter(df, x='time', y='severity', text='event',
-                           title='Incident Timeline',
-                           labels={'severity': 'Severity Level', 'time': 'Time'})
-            fig.update_traces(textposition='top center')
-            st.plotly_chart(fig, use_container_width=True)
+            # Create enhanced timeline visualization
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                # Timeline chart
+                df = pd.DataFrame(events)
+                
+                # Create color mapping for event types
+                color_map = {
+                    'change': '#3498db',
+                    'deployment': '#2ecc71',
+                    'warning': '#f39c12',
+                    'error': '#e74c3c',
+                    'incident': '#c0392b',
+                    'impact': '#e91e63',  # Hot pink for business impact
+                    'analysis': '#9b59b6',
+                    'recovery': '#1abc9c',
+                    'resolved': '#27ae60',
+                    'metric': '#34495e',
+                    'opsitem': '#7f8c8d'
+                }
+                
+                fig = px.scatter(df, x='time', y='severity', 
+                               color='type',
+                               color_discrete_map=color_map,
+                               hover_data=['event'],
+                               title='📅 Incident Timeline' + (' with Change Correlation' if has_change else ''),
+                               labels={'severity': 'Severity Level', 'time': 'Time'})
+                
+                # Add event labels
+                for _, row in df.iterrows():
+                    fig.add_annotation(
+                        x=row['time'],
+                        y=row['severity'],
+                        text=f"{row['icon']} {row['event']}",
+                        showarrow=True,
+                        arrowhead=2,
+                        ax=0,
+                        ay=-40
+                    )
+                
+                fig.update_layout(showlegend=True, height=400)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Legend and correlation info
+                if has_change:
+                    st.markdown("### 🔗 Correlation")
+                    st.info(f"""
+                    **Change ID:** {ops_data.get('RelatedChangeId', 'Unknown')}
+                    
+                    **Time to Incident:** {ops_data.get('TimeToIncident', '15 minutes')}
+                    
+                    **Pattern:** Change → Config Mismatch → Incident
+                    """)
+                else:
+                    st.markdown("### 📊 Timeline Legend")
+                    st.write("No change correlation detected")
             
     def display_recommendations(self, incident):
         """Display actionable recommendations."""
@@ -897,16 +1199,23 @@ class EnhancedSREDashboard:
         for i, rec in enumerate(recommendations[2:], 1):
             st.info(f"{i}. {rec}")
             
-        # Action buttons
+        # Generate unique suffix for button keys based on incident context
+        # Use ops_item_id if available, otherwise use a combination of type and timestamp
+        incident_id = incident.get('ops_item_id', '')
+        incident_type = incident.get('type', 'unknown')
+        timestamp = incident.get('time', datetime.now().strftime('%Y%m%d%H%M%S'))
+        key_suffix = f"{incident_id}_{incident_type}_{timestamp}".replace('-', '_').replace(' ', '_').replace(':', '')
+        
+        # Action buttons with unique keys
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("📧 Create JIRA Ticket", use_container_width=True):
+            if st.button("📧 Create JIRA Ticket", use_container_width=True, key=f"create_jira_{key_suffix}"):
                 st.success("✅ Ticket created")
         with col2:
-            if st.button("📢 Send to Slack", use_container_width=True):
+            if st.button("📢 Send to Slack", use_container_width=True, key=f"send_slack_{key_suffix}"):
                 st.success("✅ Notification sent")
         with col3:
-            if st.button("📄 Export Report", use_container_width=True):
+            if st.button("📄 Export Report", use_container_width=True, key=f"export_report_{key_suffix}"):
                 st.success("✅ Report exported")
                 
     def display_metrics_analysis(self, incident):
@@ -978,6 +1287,720 @@ class EnhancedSREDashboard:
         if 'raw_data' in incident:
             with st.expander("Collected Data"):
                 st.json(incident['raw_data'])
+
+    def render_knowledge_base(self):
+        """Render the knowledge base section."""
+        st.header("📚 SRE Knowledge Base")
+        
+        # Knowledge base tabs
+        kb_tabs = st.tabs(["🔍 Search", "📖 Browse", "➕ Add Document", "🧪 Test Analysis"])
+        
+        with kb_tabs[0]:
+            self.render_kb_search()
+            
+        with kb_tabs[1]:
+            self.render_kb_browse()
+            
+        with kb_tabs[2]:
+            self.render_kb_add_document()
+            
+        with kb_tabs[3]:
+            self.render_kb_test_analysis()
+            
+    def get_recent_incidents_for_dropdown(self):
+        """Get recent incidents for the dropdown selection."""
+        try:
+            ssm_client = boto3.client('ssm', region_name=self.region)
+            
+            # Get recent OpsItems
+            response = ssm_client.describe_ops_items(
+                OpsItemFilters=[
+                    {
+                        'Key': 'Status',
+                        'Values': ['Open', 'InProgress', 'Resolved'],
+                        'Operator': 'Equal'
+                    }
+                ],
+                MaxResults=10
+            )
+            
+            incidents = []
+            for item in response.get('OpsItemSummaries', []):
+                # Extract key information
+                ops_data = item.get('OperationalData', {})
+                
+                incident = {
+                    'id': item['OpsItemId'],
+                    'title': item.get('Title', 'Unknown'),
+                    'description': item.get('Description', '')[:100],  # First 100 chars
+                    'category': item.get('Category', 'Unknown'),
+                    'severity': item.get('Severity', '3'),
+                    'created': item.get('CreatedTime', datetime.utcnow()),
+                    'root_cause': ops_data.get('RootCause', {}).get('Value', 'Unknown')
+                }
+                
+                # Check if it's a change-related incident
+                if 'RelatedChangeId' in ops_data:
+                    incident['root_cause'] = 'Configuration mismatch from change'
+                    incident['change_id'] = ops_data['RelatedChangeId']['Value']
+                
+                incidents.append(incident)
+            
+            # Sort by creation time (most recent first)
+            incidents.sort(key=lambda x: x['created'], reverse=True)
+            
+            return incidents[:5]  # Return top 5 most recent
+            
+        except Exception as e:
+            st.warning(f"Could not fetch recent incidents: {str(e)}")
+            return []
+    
+    def render_kb_search(self):
+        """Render knowledge base search interface."""
+        st.subheader("Search Knowledge Base")
+        
+        # Add incident dropdown for demo purposes
+        st.info("💡 **Demo Tip**: Select a recent incident and click 'Load Query' to automatically populate the search")
+        
+        # Get recent incidents for dropdown
+        recent_incidents = self.get_recent_incidents_for_dropdown()
+        
+        # Create columns for incident selection
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            selected_incident = st.selectbox(
+                "Select incident for demo (optional)",
+                ["-- Manual Query --"] + [f"{inc['id']} - {inc['title']}" for inc in recent_incidents],
+                help="Select an incident to search for similar cases, fixes, and best practices"
+            )
+        
+        with col2:
+            load_button = st.button("📥 Load Query", disabled=(selected_incident == "-- Manual Query --"))
+        
+        search_type = st.radio(
+            "Search Type",
+            ["Similar Incidents", "Best Practices", "Resolution Guides"],
+            horizontal=True
+        )
+        
+        # Initialize session state for query if not exists
+        if 'kb_search_query' not in st.session_state:
+            st.session_state.kb_search_query = ""
+        
+        # Track if we just loaded a query
+        if 'kb_query_loaded' not in st.session_state:
+            st.session_state.kb_query_loaded = False
+            
+        # Handle load button click
+        if load_button and selected_incident != "-- Manual Query --":
+            # Extract incident details
+            incident_id = selected_incident.split(" - ")[0]
+            incident = next((inc for inc in recent_incidents if inc['id'] == incident_id), None)
+            if incident:
+                if search_type == "Similar Incidents":
+                    st.session_state.kb_search_query = incident.get('description', incident['title'])
+                elif search_type == "Best Practices":
+                    st.session_state.kb_search_query = f"{incident.get('category', 'performance')} {incident.get('root_cause', 'issues')}"
+                else:  # Resolution Guides
+                    st.session_state.kb_search_query = incident.get('root_cause', incident['title'])
+                
+                st.session_state.kb_query_loaded = True
+                # Force a rerun to update the text area
+                st.experimental_rerun()
+        
+        # Show success message if query was just loaded
+        if st.session_state.kb_query_loaded:
+            st.success(f"✅ Query loaded successfully!")
+            st.session_state.kb_query_loaded = False
+        
+        # Search form - Use the key parameter properly with session state
+        query = st.text_area(
+            "Enter your search query:", 
+            value=st.session_state.kb_search_query,
+            key="kb_query_text_area",
+            height=100,
+            help="Enter keywords, error messages, or incident descriptions"
+        )
+        
+        # Update session state when query changes
+        if query != st.session_state.kb_search_query:
+            st.session_state.kb_search_query = query
+        
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            category = st.selectbox(
+                "Category (optional)",
+                ["All", "performance", "security", "outage", "data"]
+            )
+        with col2:
+            max_results = st.number_input("Max Results", min_value=1, max_value=20, value=5)
+            
+        if st.button("🔍 Search", type="primary", key="kb_search_button"):
+            # Always use the current query value
+            if query:
+                self.search_knowledge_base(search_type, query, category, max_results)
+            else:
+                st.warning("Please enter a search query")
+                
+    def search_knowledge_base(self, search_type, query, category, max_results):
+        """Search the knowledge base."""
+        with st.spinner("Searching knowledge base..."):
+            try:
+                # Prepare the action based on search type
+                if search_type == "Similar Incidents":
+                    action = "search_incidents"
+                    params = {
+                        'query': query,
+                        'k': max_results
+                    }
+                    if category != "All":
+                        params['category'] = category
+                elif search_type == "Best Practices":
+                    action = "search_best_practices"
+                    params = {
+                        'query': query,
+                        'tags': [category] if category != "All" else []
+                    }
+                else:  # Resolution Guides
+                    action = "get_resolution"
+                    params = {
+                        'incident_type': category if category != "All" else "general"
+                    }
+                    
+                # Invoke knowledge base Lambda
+                lambda_client = boto3.client('lambda', region_name=self.region)
+                response = lambda_client.invoke(
+                    FunctionName='sre-knowledge-base-agent-lambda',
+                    InvocationType='RequestResponse',
+                    Payload=json.dumps({
+                        'action': action,
+                        **params
+                    })
+                )
+                
+                result = json.loads(response['Payload'].read())
+                
+                if result.get('statusCode') == 200:
+                    body = json.loads(result['body'])
+                    
+                    if action == "get_resolution" and body.get('guide'):
+                        # Display single resolution guide
+                        guide = body['guide']
+                        with st.expander(f"📋 {guide['title']}", expanded=True):
+                            st.markdown(guide['content'])
+                    else:
+                        # Display search results
+                        results = body.get('results', [])
+                        st.success(f"Found {len(results)} results")
+                        
+                        # Group results by type for better visualization
+                        incidents = [r for r in results if r['metadata'].get('type') == 'incident']
+                        best_practices = [r for r in results if r['metadata'].get('type') == 'best_practice']
+                        resolutions = [r for r in results if r['metadata'].get('type') == 'resolution_guide']
+                        
+                        # Display incidents
+                        if incidents:
+                            st.markdown("### 🚨 Similar Incidents")
+                            for idx, doc in enumerate(incidents, 1):
+                                with st.expander(f"{idx}. {doc['title']} (Similarity: {doc.get('score', 0):.2f})"):
+                                    st.markdown(f"**Category:** {doc['metadata'].get('category', 'N/A')}")
+                                    
+                                    # Check for change correlation
+                                    if 'change_id' in doc['metadata']:
+                                        st.error(f"🔧 **Caused by Change:** {doc['metadata']['change_id']}")
+                                    
+                                    st.markdown("**Description:**")
+                                    st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
+                                    
+                                    # Show resolution if available
+                                    if 'resolution' in doc['metadata']:
+                                        st.success(f"✅ **Resolution:** {doc['metadata']['resolution']}")
+                        
+                        # Display best practices
+                        if best_practices:
+                            st.markdown("### 📚 Related Best Practices")
+                            for idx, doc in enumerate(best_practices, 1):
+                                with st.expander(f"{idx}. {doc['title']}"):
+                                    if doc['metadata'].get('tags'):
+                                        st.markdown(f"**Tags:** {', '.join(doc['metadata']['tags'])}")
+                                    st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
+                        
+                        # Display resolution guides
+                        if resolutions:
+                            st.markdown("### 🔧 Resolution Guides")
+                            for idx, doc in enumerate(resolutions, 1):
+                                with st.expander(f"{idx}. {doc['title']}"):
+                                    st.markdown(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
+                else:
+                    st.error(f"Search failed: {result.get('body')}")
+                    
+            except Exception as e:
+                st.error(f"Error searching knowledge base: {str(e)}")
+                
+    def render_kb_browse(self):
+        """Browse knowledge base by category."""
+        st.subheader("Browse Knowledge Base")
+        
+        # Add an "All" option to browse all categories
+        category = st.selectbox(
+            "Select Category",
+            ["All", "performance", "security", "outage", "resilience", "data"]
+        )
+        
+        doc_type = st.radio(
+            "Document Type",
+            ["All", "incident", "best_practice", "resolution_guide"],
+            horizontal=True
+        )
+        
+        if st.button("📖 Browse", key="kb_browse_button"):
+            self.browse_knowledge_base(category, doc_type)
+            
+    def browse_knowledge_base(self, category, doc_type):
+        """Browse documents by category."""
+        with st.spinner("Browsing knowledge base..."):
+            try:
+                lambda_client = boto3.client('lambda', region_name=self.region)
+                
+                # Use the new browse_documents action
+                response = lambda_client.invoke(
+                    FunctionName='sre-knowledge-base-agent-lambda',
+                    InvocationType='RequestResponse',
+                    Payload=json.dumps({
+                        'action': 'browse_documents',
+                        'category': None if category == "All" else category,
+                        'doc_type': None if doc_type == "All" else doc_type,
+                        'limit': 50
+                    })
+                )
+                
+                result = json.loads(response['Payload'].read())
+                
+                if result.get('statusCode') == 200:
+                    body = json.loads(result['body'])
+                    all_results = body.get('results', [])
+                    
+                    # Display results
+                    if all_results:
+                        category_display = "all categories" if category == "All" else f"{category} category"
+                        st.success(f"Found {len(all_results)} documents in {category_display}")
+                        
+                        # Group by type
+                        by_type = {}
+                        for doc in all_results:
+                            doc_type = doc.get('metadata', {}).get('type', 'unknown')
+                            if doc_type not in by_type:
+                                by_type[doc_type] = []
+                            by_type[doc_type].append(doc)
+                        
+                        # Display each type
+                        type_order = ['incident', 'best_practice', 'resolution_guide']
+                        for doc_type in type_order:
+                            if doc_type in by_type:
+                                docs = by_type[doc_type]
+                                type_emoji = {
+                                    'incident': '🚨',
+                                    'best_practice': '📚',
+                                    'resolution_guide': '🔧'
+                                }.get(doc_type, '📄')
+                                
+                                st.markdown(f"### {type_emoji} {doc_type.replace('_', ' ').title()}s ({len(docs)})")
+                                
+                                for doc in docs:
+                                    with st.expander(f"{doc['title']} ({doc['document_id']})"):
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            st.markdown(f"**Category:** {doc.get('metadata', {}).get('category', 'N/A')}")
+                                            st.markdown(f"**Tags:** {', '.join(doc.get('metadata', {}).get('tags', []))}")
+                                        with col2:
+                                            if doc.get('metadata', {}).get('severity'):
+                                                severity_color = {
+                                                    'high': '🔴',
+                                                    'medium': '🟡',
+                                                    'low': '🟢'
+                                                }.get(doc['metadata']['severity'], '⚪')
+                                                st.markdown(f"**Severity:** {severity_color} {doc['metadata']['severity']}")
+                                        
+                                        st.markdown("---")
+                                        
+                                        # Show content
+                                        content = doc['content']
+                                        if len(content) > 1000:
+                                            # Show first 1000 chars with expand option
+                                            st.markdown(content[:1000] + "...")
+                                            if st.button(f"Show full content", key=f"show_{doc['document_id']}"):
+                                                st.markdown(content)
+                                        else:
+                                            st.markdown(content)
+                                        
+                                        # Show metadata
+                                        if doc.get('metadata', {}).get('root_cause'):
+                                            st.info(f"**Root Cause:** {doc['metadata']['root_cause']}")
+                    else:
+                        st.warning(f"No documents found in {category} category")
+                        st.info("Try selecting a different category or adding documents to the knowledge base.")
+                else:
+                    st.error(f"Failed to browse documents: {result.get('body')}")
+                    
+            except Exception as e:
+                st.error(f"Error browsing knowledge base: {str(e)}")
+        
+    def render_kb_add_document(self):
+        """Add new document to knowledge base."""
+        st.subheader("Add Document to Knowledge Base")
+        
+        doc_type = st.selectbox(
+            "Document Type",
+            ["incident", "best_practice", "resolution_guide"]
+        )
+        
+        doc_id = st.text_input("Document ID (e.g., INC-001, BP-001)")
+        title = st.text_input("Title")
+        
+        category = st.selectbox(
+            "Category",
+            ["performance", "security", "outage", "resilience", "data"]
+        )
+        
+        content = st.text_area("Content", height=300)
+        
+        tags = st.text_input("Tags (comma-separated)")
+        
+        if st.button("➕ Add Document", key="kb_add_document"):
+            if all([doc_id, title, category, content]):
+                self.add_to_knowledge_base(doc_id, title, category, content, doc_type, tags)
+            else:
+                st.warning("Please fill all required fields")
+                
+    def add_to_knowledge_base(self, doc_id, title, category, content, doc_type, tags):
+        """Add document to knowledge base."""
+        with st.spinner("Adding document to knowledge base..."):
+            try:
+                document = {
+                    'document_id': doc_id,
+                    'title': title,
+                    'content': content,
+                    'metadata': {
+                        'type': doc_type,
+                        'category': category,
+                        'tags': [tag.strip() for tag in tags.split(',')] if tags else []
+                    }
+                }
+                
+                lambda_client = boto3.client('lambda', region_name=self.region)
+                response = lambda_client.invoke(
+                    FunctionName='sre-knowledge-base-agent-lambda',
+                    InvocationType='RequestResponse',
+                    Payload=json.dumps({
+                        'action': 'index_document',
+                        'document': document
+                    })
+                )
+                
+                result = json.loads(response['Payload'].read())
+                
+                if result.get('statusCode') == 200:
+                    st.success(f"✅ Document {doc_id} added successfully!")
+                else:
+                    st.error(f"Failed to add document: {result.get('body')}")
+                    
+            except Exception as e:
+                st.error(f"Error adding document: {str(e)}")
+                
+    def render_kb_test_analysis(self):
+        """Test knowledge-based analysis."""
+        st.subheader("Test Knowledge-Based Analysis")
+        
+        st.info("Enter an incident description to get analysis enriched with knowledge base context")
+        
+        incident_desc = st.text_area(
+            "Incident Description",
+            value="Application experiencing severe performance degradation with database connection timeouts",
+            height=100
+        )
+        
+        incident_type = st.selectbox(
+            "Incident Type",
+            ["performance", "security", "outage", "general"]
+        )
+        
+        if st.button("🧪 Analyze with Knowledge Base", key="kb_test_analysis"):
+            if incident_desc:
+                self.analyze_with_knowledge_base(incident_desc, incident_type)
+            else:
+                st.warning("Please enter an incident description")
+                
+    def analyze_with_knowledge_base(self, incident_desc, incident_type):
+        """Analyze incident using knowledge base context."""
+        with st.spinner("Analyzing with knowledge base context..."):
+            try:
+                lambda_client = boto3.client('lambda', region_name=self.region)
+                response = lambda_client.invoke(
+                    FunctionName='sre-knowledge-base-agent-lambda',
+                    InvocationType='RequestResponse',
+                    Payload=json.dumps({
+                        'action': 'analyze_with_context',
+                        'incident_description': incident_desc,
+                        'incident_type': incident_type
+                    })
+                )
+                
+                result = json.loads(response['Payload'].read())
+                
+                if result.get('statusCode') == 200:
+                    body = json.loads(result['body'])
+                    
+                    # Display context used
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Similar Incidents", body['context_used']['similar_incidents_count'])
+                    with col2:
+                        st.metric("Best Practices", body['context_used']['best_practices_count'])
+                    with col3:
+                        st.metric("Has Resolution Guide", "✅" if body['context_used']['has_resolution_guide'] else "❌")
+                        
+                    # Display analysis
+                    st.markdown("### Knowledge-Enhanced Analysis")
+                    st.markdown(body['analysis'])
+                else:
+                    st.error(f"Analysis failed: {result.get('body')}")
+                    
+            except Exception as e:
+                st.error(f"Error during analysis: {str(e)}")
+                
+    def render_recent_changes(self):
+        """Render recent changes tab."""
+        st.header("🔧 Recent Changes")
+        
+        # Fetch recent changes (OpsItems with [CHANGE] prefix)
+        try:
+            response = self.ssm_client.describe_ops_items(
+                OpsItemFilters=[
+                    {
+                        'Key': 'Title',
+                        'Values': ['[CHANGE]'],
+                        'Operator': 'Contains'
+                    },
+                    {
+                        'Key': 'Status',
+                        'Values': ['Open', 'InProgress'],
+                        'Operator': 'Equal'
+                    }
+                ],
+                MaxResults=20
+            )
+            
+            changes = response.get('OpsItemSummaries', [])
+            
+            if changes:
+                st.success(f"Found {len(changes)} recent changes")
+                
+                # Create columns for better layout
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    selected_change = st.selectbox(
+                        "Select a change to view details:",
+                        options=[f"{c['OpsItemId']} - {c['Title']}" for c in changes],
+                        format_func=lambda x: x.split(' - ', 1)[1] if ' - ' in x else x
+                    )
+                
+                with col2:
+                    if st.button("🔄 Refresh Changes", key="refresh_changes"):
+                        st.experimental_rerun()
+                
+                if selected_change:
+                    change_id = selected_change.split(' - ')[0]
+                    
+                    # Get full change details
+                    change_response = self.ssm_client.get_ops_item(OpsItemId=change_id)
+                    change_details = change_response['OpsItem']
+                    
+                    # Display change details
+                    st.markdown("### Change Details")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Change ID", change_details.get('OpsItemId', 'N/A'))
+                        ops_data = change_details.get('OperationalData', {})
+                        if 'ChangeRequestId' in ops_data:
+                            st.metric("Request ID", ops_data['ChangeRequestId'].get('Value', 'N/A'))
+                    
+                    with col2:
+                        st.metric("Status", change_details.get('Status', 'Unknown'))
+                        if 'Risk' in ops_data:
+                            risk = ops_data['Risk'].get('Value', 'Unknown')
+                            risk_color = {'Low': '🟢', 'Medium': '🟡', 'High': '🔴'}.get(risk, '⚪')
+                            st.metric("Risk Level", f"{risk_color} {risk}")
+                    
+                    with col3:
+                        created_time = change_details.get('CreatedTime', datetime.now())
+                        if isinstance(created_time, str):
+                            created_time = datetime.fromisoformat(created_time.replace('Z', '+00:00'))
+                        st.metric("Created", created_time.strftime('%Y-%m-%d %H:%M'))
+                        if 'ChangeType' in ops_data:
+                            st.metric("Type", ops_data['ChangeType'].get('Value', 'N/A'))
+                    
+                    # Show description
+                    with st.expander("📋 Change Description", expanded=True):
+                        st.markdown(change_details.get('Description', 'No description available'))
+                    
+                    # Check for related incidents
+                    st.markdown("### 🔗 Related Incidents")
+                    
+                    # Get the change request ID from operational data
+                    change_request_id = ops_data.get('ChangeRequestId', {}).get('Value', '')
+                    
+                    # Search for all recent incidents and filter client-side
+                    try:
+                        incident_response = self.ssm_client.describe_ops_items(
+                            OpsItemFilters=[
+                                {
+                                    'Key': 'Status',
+                                    'Values': ['Open', 'InProgress', 'Resolved'],
+                                    'Operator': 'Equal'
+                                },
+                                {
+                                    'Key': 'CreatedTime',
+                                    'Values': [(datetime.utcnow() - timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%S.%fZ')],
+                                    'Operator': 'GreaterThan'
+                                }
+                            ],
+                            MaxResults=50
+                        )
+                        
+                        # Filter incidents that reference this change
+                        all_incidents = incident_response.get('OpsItemSummaries', [])
+                        related_incidents = []
+                        
+                        for incident in all_incidents:
+                            # Skip if this is a change OpsItem
+                            if '[CHANGE]' in incident.get('Title', ''):
+                                continue
+                                
+                            # Check if this incident references the change
+                            inc_ops_data = incident.get('OperationalData', {})
+                            if inc_ops_data.get('RelatedChangeId', {}).get('Value') == change_request_id:
+                                related_incidents.append(incident)
+                                
+                    except Exception as e:
+                        st.error(f"Error searching for related incidents: {str(e)}")
+                        related_incidents = []
+                    
+                    if related_incidents:
+                        st.warning(f"⚠️ This change caused {len(related_incidents)} incident(s)")
+                        
+                        for incident in related_incidents:
+                            with st.expander(f"🚨 {incident['Title']} ({incident['OpsItemId']})"):
+                                st.write(f"**Severity:** {incident.get('Severity', 'N/A')}")
+                                st.write(f"**Status:** {incident.get('Status', 'N/A')}")
+                                st.write(f"**Created:** {incident.get('CreatedTime', 'N/A')}")
+                                
+                                if st.button(f"Analyze Incident", key=f"analyze_{incident['OpsItemId']}"):
+                                    st.session_state.selected_ops_item = incident['OpsItemId']
+                                    st.experimental_rerun()
+                    else:
+                        st.success("✅ No incidents caused by this change")
+                    
+                    # Timeline visualization
+                    if related_incidents:
+                        st.markdown("### 📅 Change Impact Timeline")
+                        self.display_change_timeline(change_details, related_incidents)
+                        
+            else:
+                st.info("No recent changes found. Changes are tracked when they have '[CHANGE]' prefix in the title.")
+                
+                # Demo button
+                if st.button("🎭 Create Demo Change", key="create_demo_change"):
+                    with st.spinner("Creating demo change..."):
+                        from change_incident_demo import ChangeIncidentDemo
+                        demo = ChangeIncidentDemo()
+                        change_details = demo.create_change_record()
+                        st.success(f"Created demo change: {change_details['ChangeRequestId']}")
+                        st.experimental_rerun()
+                        
+        except Exception as e:
+            st.error(f"Error fetching changes: {str(e)}")
+    
+    def display_change_timeline(self, change_details, incidents):
+        """Display timeline showing change and its impact."""
+        events = []
+        
+        # Add change event
+        change_time = change_details.get('CreatedTime', datetime.now())
+        if isinstance(change_time, str):
+            change_time = datetime.fromisoformat(change_time.replace('Z', '+00:00'))
+            
+        events.append({
+            'time': change_time,
+            'event': f"Change {change_details['OpsItemId']} implemented",
+            'type': 'change',
+            'severity': 0,
+            'icon': '🔧'
+        })
+        
+        # Add incident events
+        for incident in incidents:
+            inc_time = incident.get('CreatedTime', change_time + timedelta(minutes=15))
+            if isinstance(inc_time, str):
+                inc_time = datetime.fromisoformat(inc_time.replace('Z', '+00:00'))
+                
+            time_diff = (inc_time - change_time).total_seconds() / 60
+            
+            events.append({
+                'time': inc_time,
+                'event': f"{incident['Title']} ({incident['OpsItemId']})",
+                'type': 'incident',
+                'severity': int(incident.get('Severity', 2)),
+                'icon': '🚨',
+                'time_from_change': f"+{int(time_diff)} min"
+            })
+        
+        # Create visualization
+        if events:
+            df = pd.DataFrame(events)
+            
+            fig = px.scatter(df, x='time', y='severity',
+                           color='type',
+                           hover_data=['event', 'time_from_change'] if 'time_from_change' in df.columns else ['event'],
+                           title='Change → Incident Timeline',
+                           labels={'severity': 'Severity', 'time': 'Time'},
+                           color_discrete_map={'change': '#3498db', 'incident': '#e74c3c'})
+            
+            # Add annotations
+            for _, row in df.iterrows():
+                fig.add_annotation(
+                    x=row['time'],
+                    y=row['severity'],
+                    text=f"{row['icon']} {row.get('time_from_change', '')}",
+                    showarrow=True,
+                    arrowhead=2,
+                    ax=0,
+                    ay=-30
+                )
+            
+            fig.update_layout(height=400, showlegend=True)
+            st.plotly_chart(fig, use_container_width=True)
+    
+    def render_analytics(self):
+        """Render analytics dashboard."""
+        st.header("📊 SRE Analytics Dashboard")
+        st.info("Analytics dashboard showing incident trends, patterns, and insights")
+        
+        # Placeholder for analytics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Incidents", "127", "↑ 12%")
+        with col2:
+            st.metric("Avg Resolution Time", "23 min", "↓ 5 min")
+        with col3:
+            st.metric("Knowledge Base Docs", "45", "↑ 8")
+        with col4:
+            st.metric("AI Accuracy", "94%", "↑ 2%")
+            
+        st.markdown("### Incident Trends")
+        st.line_chart({"Performance": [10, 15, 13, 18, 20], "Security": [5, 7, 6, 9, 8], "Outage": [2, 3, 2, 4, 3]})
 
 def main():
     """Main application entry point."""
