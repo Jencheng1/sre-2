@@ -1,0 +1,88 @@
+{
+  "mcp_servers": {
+    "splunk": {
+      "name": "splunk",
+      "type": "rest_api",
+      "endpoint": "http://localhost:8080/splunk",
+      "auth": {
+        "type": "bearer",
+        "token": "test_token_splunk"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3
+    },
+    "dynatrace": {
+      "name": "dynatrace",
+      "type": "rest_api",
+      "endpoint": "http://localhost:8081/dynatrace",
+      "auth": {
+        "type": "api_token",
+        "token": "test_token_dynatrace"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3
+    },
+    "servicenow": {
+      "name": "servicenow",
+      "type": "rest_api",
+      "endpoint": "http://localhost:8082/servicenow",
+      "auth": {
+        "type": "basic",
+        "username": "admin",
+        "password": "test_password"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3
+    },
+    "confluence": {
+      "name": "confluence",
+      "type": "rest_api",
+      "endpoint": "http://localhost:8083/confluence",
+      "auth": {
+        "type": "bearer",
+        "token": "test_token_confluence"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3
+    },
+    "gitlab": {
+      "name": "gitlab",
+      "type": "rest_api",
+      "endpoint": "http://localhost:8084/gitlab",
+      "auth": {
+        "type": "private_token",
+        "token": "test_token_gitlab"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3
+    },
+    "custom_monitoring": {
+      "name": "custom_monitoring",
+      "type": "rest_api",
+      "endpoint": "https://monitoring.example.com/api",
+      "auth": {
+        "type": "bearer",
+        "token": "ssm:/sre-copilot/mcp/custom_monitoring/token"
+      },
+      "enabled": true
+    }
+  },
+  "external_data_sources": {},
+  "global_settings": {
+    "default_timeout": 30,
+    "max_retry_count": 5,
+    "enable_caching": true,
+    "cache_ttl": 300,
+    "log_level": "INFO"
+  }
+}

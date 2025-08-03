@@ -1,4 +1,4 @@
-# Requirements for SRE Copilot Streamlit Application
+# Requirements for SRE Copilot Streamlit Application with MCP Integration
 
 # Core dependencies
 streamlit==1.32.2
@@ -8,6 +8,15 @@ plotly==5.18.0
 
 # AWS SDK
 botocore==1.34.25
+
+# MCP Server dependencies
+flask==2.3.3
+requests==2.31.0
+aiohttp==3.8.5
+
+# ML and Analytics
+numpy==1.24.3
+scikit-learn==1.3.0
 
 # Utilities
 python-dateutil==2.8.2
