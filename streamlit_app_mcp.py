@@ -331,7 +331,7 @@ def show_analysis_history():
             st.write(f"**Confidence**: {item['analysis'].get('confidence', 0) * 100:.0f}%")
             if st.button(f"Load Analysis", key=f"load_{idx}"):
                 st.session_state.current_analysis = item['analysis']
-                st.rerun()
+                st.experimental_rerun()
 
 def show_mcp_configuration_page():
     """Show MCP configuration management page."""
