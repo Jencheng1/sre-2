@@ -1,0 +1,794 @@
+{
+  "incident_scenarios_with_real_aws_data": [
+    {
+      "id": "INC-001", 
+      "name": "EC2 Service Quota Exceeded with Change Correlation",
+      "aws_systems_manager_change_calendar": {
+        "changeRequests": [
+          {
+            "changeRequestId": "chr-0a1b2c3d4e5f6789",
+            "changeRequestName": "Scale EC2 Fleet for Black Friday",
+            "status": "APPROVED",
+            "startTime": "2025-08-05T10:00:00Z",
+            "endTime": "2025-08-05T12:00:00Z",
+            "approvedBy": "arn:aws:iam::123456789012:user/admin",
+            "documentName": "AWS-HelloWorldChangeTemplate",
+            "documentVersion": "$DEFAULT",
+            "changeDetails": {
+              "changeType": "STANDARD",
+              "scheduledStartTime": "2025-08-05T10:30:00Z",
+              "scheduledEndTime": "2025-08-05T11:30:00Z"
+            }
+          }
+        ],
+        "calendarState": {
+          "calendarName": "prod-change-calendar",
+          "state": "OPEN",
+          "atTime": "2025-08-05T10:45:00Z"
+        }
+      },
+      "aws_systems_manager_opsitems": {
+        "opsItemId": "oi-1234567890abcdef",
+        "createdTime": "2025-08-05T10:45:30Z",
+        "createdBy": "arn:aws:sts::123456789012:assumed-role/CloudWatchAutoAlarm",
+        "lastModifiedTime": "2025-08-05T10:50:00Z",
+        "title": "EC2 Instance Launch Failures - Quota Exceeded",
+        "source": "EC2",
+        "operationalData": {
+          "/aws/resources": {
+            "type": "String",
+            "value": "[{\"arn\":\"arn:aws:ec2:us-west-2:123456789012:instance/*\"}]"
+          },
+          "/aws/automations": {
+            "type": "String", 
+            "value": "[{\"automationType\":\"AWS:EC2:IncreaseInstanceQuota\",\"automationId\":\"L-1216C47A\"}]"
+          },
+          "/aws/dedup": {
+            "type": "String",
+            "value": "{\"dedupString\":\"EC2-QuotaExceeded-m5.large-us-west-2\"}"
+          }
+        },
+        "status": "Open",
+        "severity": "2",
+        "category": "Availability",
+        "notifications": [
+          {
+            "arn": "arn:aws:sns:us-west-2:123456789012:ops-team"
+          }
+        ],
+        "relatedOpsItems": [
+          {
+            "opsItemId": "oi-0987654321fedcba"
+          }
+        ]
+      },
+      "cloudtrail_events": [
+        {
+          "Records": [
+            {
+              "eventVersion": "1.08",
+              "userIdentity": {
+                "type": "AssumedRole",
+                "principalId": "AIDAI23HXD2O4VEXAMPLE:i-0123456789abcdef",
+                "arn": "arn:aws:sts::123456789012:assumed-role/AutoScalingRole/i-0123456789abcdef",
+                "accountId": "123456789012",
+                "accessKeyId": "AKIAIOSFODNN7EXAMPLE",
+                "sessionContext": {
+                  "sessionIssuer": {
+                    "type": "Role",
+                    "principalId": "AIDAI23HXD2O4VEXAMPLE",
+                    "arn": "arn:aws:iam::123456789012:role/AutoScalingRole",
+                    "accountId": "123456789012",
+                    "userName": "AutoScalingRole"
+                  },
+                  "attributes": {
+                    "creationDate": "2025-08-05T10:30:00Z",
+                    "mfaAuthenticated": "false"
+                  }
+                }
+              },
+              "eventTime": "2025-08-05T10:45:00Z",
+              "eventSource": "ec2.amazonaws.com",
+              "eventName": "RunInstances",
+              "awsRegion": "us-west-2",
+              "sourceIPAddress": "autoscaling.amazonaws.com",
+              "userAgent": "autoscaling.amazonaws.com",
+              "errorCode": "Client.InstanceLimitExceeded",
+              "errorMessage": "Your quota allows for 20 instances of type m5.large per availability zone. You have 20 instances running.",
+              "requestParameters": {
+                "instancesSet": {
+                  "items": [
+                    {
+                      "imageId": "ami-0abcdef1234567890",
+                      "minCount": 25,
+                      "maxCount": 25,
+                      "keyName": "prod-key",
+                      "instanceType": "m5.large",
+                      "monitoring": {
+                        "enabled": true
+                      },
+                      "placement": {
+                        "availabilityZone": "us-west-2a"
+                      },
+                      "subnetId": "subnet-12345678"
+                    }
+                  ]
+                },
+                "instanceType": "m5.large"
+              },
+              "responseElements": null,
+              "requestID": "12345678-1234-1234-1234-123456789012",
+              "eventID": "12345678-1234-1234-1234-123456789012",
+              "readOnly": false,
+              "eventType": "AwsApiCall",
+              "managementEvent": true,
+              "recipientAccountId": "123456789012",
+              "eventCategory": "Management",
+              "tlsDetails": {
+                "tlsVersion": "TLSv1.2",
+                "cipherSuite": "ECDHE-RSA-AES128-GCM-SHA256",
+                "clientProvidedHostHeader": "ec2.us-west-2.amazonaws.com"
+              }
+            }
+          ]
+        }
+      ],
+      "vpc_flow_logs": [
+        {
+          "version": 2,
+          "account-id": "123456789012",
+          "interface-id": "eni-0a1b2c3d4e5f6789",
+          "srcaddr": "10.0.1.45",
+          "dstaddr": "169.254.169.254",
+          "srcport": 45678,
+          "dstport": 80,
+          "protocol": 6,
+          "packets": 10,
+          "bytes": 1500,
+          "start": 1722854700,
+          "end": 1722854760,
+          "action": "ACCEPT",
+          "log-status": "OK",
+          "vpc-id": "vpc-12345678",
+          "subnet-id": "subnet-12345678",
+          "instance-id": "i-0123456789abcdef",
+          "tcp-flags": 19,
+          "type": "IPv4",
+          "pkt-srcaddr": "10.0.1.45",
+          "pkt-dstaddr": "169.254.169.254",
+          "region": "us-west-2",
+          "az-id": "usw2-az1",
+          "pkt-src-aws-service": "EC2",
+          "pkt-dst-aws-service": "EC2",
+          "flow-direction": "ingress",
+          "traffic-path": 1
+        }
+      ],
+      "trusted_advisor_checks": {
+        "result": {
+          "checkId": "eW7HH0l7J9",
+          "timestamp": "2025-08-05T10:47:00.000Z",
+          "status": "error",
+          "resourcesSummary": {
+            "resourcesProcessed": 20,
+            "resourcesFlagged": 5,
+            "resourcesIgnored": 0,
+            "resourcesSuppressed": 0
+          },
+          "categorySpecificSummary": {
+            "costOptimizing": {
+              "estimatedMonthlySavings": 0.00,
+              "estimatedPercentMonthlySavings": 0.0
+            }
+          },
+          "flaggedResources": [
+            {
+              "resourceId": "arn:aws:ec2:us-west-2:123456789012:instance-type/m5.large",
+              "status": "error",
+              "region": "us-west-2",
+              "isSuppressed": false,
+              "metadata": [
+                "us-west-2",
+                "EC2",
+                "m5.large",
+                "On-Demand Instance",
+                "20",
+                "20",
+                "100%",
+                "L-1216C47A"
+              ]
+            }
+          ]
+        }
+      },
+      "personal_health_dashboard_events": {
+        "events": [
+          {
+            "arn": "arn:aws:health:us-west-2::event/EC2/AWS_EC2_INSTANCE_LIMIT_EXCEEDED/AWS_EC2_INSTANCE_LIMIT_EXCEEDED_12345678",
+            "service": "EC2",
+            "eventTypeCode": "AWS_EC2_INSTANCE_LIMIT_EXCEEDED",
+            "eventTypeCategory": "accountNotification",
+            "region": "us-west-2",
+            "availabilityZone": "us-west-2a",
+            "startTime": "2025-08-05T10:45:00Z",
+            "endTime": "2025-08-05T11:00:00Z",
+            "lastUpdatedTime": "2025-08-05T10:50:00Z",
+            "statusCode": "open",
+            "eventScopeCode": "ACCOUNT_SPECIFIC"
+          }
+        ],
+        "eventDetails": [
+          {
+            "event": {
+              "arn": "arn:aws:health:us-west-2::event/EC2/AWS_EC2_INSTANCE_LIMIT_EXCEEDED/AWS_EC2_INSTANCE_LIMIT_EXCEEDED_12345678",
+              "service": "EC2",
+              "eventTypeCode": "AWS_EC2_INSTANCE_LIMIT_EXCEEDED",
+              "eventTypeCategory": "accountNotification"
+            },
+            "eventDescription": {
+              "latestDescription": "Your AWS account 123456789012 has reached 100% of the limit for m5.large instances in the us-west-2 region. Your current limit is 20. To request a limit increase, please visit AWS Support Center."
+            },
+            "eventMetadata": {
+              "instance_type": "m5.large",
+              "current_usage": "20",
+              "limit": "20",
+              "quota_code": "L-1216C47A",
+              "affected_operation": "RunInstances"
+            }
+          }
+        ]
+      },
+      "correlation_and_root_cause": {
+        "correlated_events": [
+          {
+            "source": "Change Calendar",
+            "event": "Approved change for EC2 scaling",
+            "time": "T-45min",
+            "relevance": "HIGH"
+          },
+          {
+            "source": "CloudTrail",
+            "event": "Multiple RunInstances failures",
+            "time": "T-0min",
+            "relevance": "CRITICAL"
+          },
+          {
+            "source": "OpsItem",
+            "event": "Auto-created incident for quota exceeded",
+            "time": "T+30sec",
+            "relevance": "HIGH"
+          }
+        ],
+        "root_cause": "EC2 instance quota (20) insufficient for Black Friday scaling change request that attempted to launch 25 instances",
+        "remediation": {
+          "immediate": [
+            "Request quota increase via Service Quotas for L-1216C47A",
+            "Scale horizontally in different AZ or region"
+          ],
+          "preventive": [
+            "Pre-validate quotas before change implementation",
+            "Implement quota monitoring in change validation process"
+          ]
+        }
+      }
+    },
+    {
+      "id": "INC-002",
+      "name": "Network Security Group Misconfiguration",
+      "aws_systems_manager_change_calendar": {
+        "changeRequests": [
+          {
+            "changeRequestId": "chr-9f8e7d6c5b4a3210",
+            "changeRequestName": "Update Security Groups for Compliance",
+            "status": "APPROVED",
+            "startTime": "2025-08-05T11:00:00Z",
+            "endTime": "2025-08-05T11:30:00Z",
+            "approvedBy": "arn:aws:iam::123456789012:user/security-admin",
+            "documentName": "AWS-ApplySecurityGroupUpdate",
+            "documentVersion": "1",
+            "changeDetails": {
+              "changeType": "STANDARD",
+              "description": "Applying new security group rules for PCI compliance"
+            },
+            "tags": [
+              {
+                "key": "Environment",
+                "value": "Production"
+              },
+              {
+                "key": "Compliance",
+                "value": "PCI-DSS"
+              }
+            ]
+          }
+        ]
+      },
+      "aws_systems_manager_opsitems": {
+        "opsItemId": "oi-abcdef1234567890",
+        "createdTime": "2025-08-05T11:20:00Z",
+        "createdBy": "arn:aws:sts::123456789012:assumed-role/NetworkMonitor",
+        "title": "Critical: Network Connectivity Loss Detected",
+        "source": "VPCFlowLogs",
+        "operationalData": {
+          "/aws/resources": {
+            "type": "String",
+            "value": "[{\"arn\":\"arn:aws:ec2:us-west-2:123456789012:security-group/sg-0123456789abcdef0\"}]"
+          },
+          "/aws/analysis": {
+            "type": "String",
+            "value": "{\"affectedInstances\":15,\"blockedConnections\":450,\"primaryPort\":443}"
+          }
+        },
+        "status": "InProgress",
+        "severity": "1",
+        "category": "Security",
+        "actualStartTime": "2025-08-05T11:22:00Z",
+        "plannedEndTime": "2025-08-05T12:00:00Z"
+      },
+      "cloudtrail_events": [
+        {
+          "Records": [
+            {
+              "eventVersion": "1.08",
+              "userIdentity": {
+                "type": "IAMUser",
+                "principalId": "AIDAI23HXD2O4VEXAMPLE",
+                "arn": "arn:aws:iam::123456789012:user/security-admin",
+                "accountId": "123456789012",
+                "accessKeyId": "AKIAIOSFODNN7EXAMPLE",
+                "userName": "security-admin"
+              },
+              "eventTime": "2025-08-05T11:15:00Z",
+              "eventSource": "ec2.amazonaws.com",
+              "eventName": "RevokeSecurityGroupIngress",
+              "awsRegion": "us-west-2",
+              "sourceIPAddress": "203.0.113.12",
+              "userAgent": "aws-cli/2.13.0 Python/3.11.4",
+              "requestParameters": {
+                "groupId": "sg-0123456789abcdef0",
+                "ipPermissions": {
+                  "items": [
+                    {
+                      "ipProtocol": "tcp",
+                      "fromPort": 443,
+                      "toPort": 443,
+                      "groups": {},
+                      "ipRanges": {
+                        "items": [
+                          {
+                            "cidrIp": "10.0.0.0/8",
+                            "description": "Internal network access"
+                          }
+                        ]
+                      },
+                      "ipv6Ranges": {},
+                      "prefixListIds": {}
+                    }
+                  ]
+                }
+              },
+              "responseElements": {
+                "requestId": "12345678-90ab-cdef-1234-567890abcdef",
+                "_return": true,
+                "revokedSecurityGroupRuleSet": {
+                  "items": [
+                    {
+                      "groupId": "sg-0123456789abcdef0",
+                      "groupOwnerId": "123456789012",
+                      "securityGroupRuleId": "sgr-0123456789abcdef0",
+                      "ipProtocol": "tcp",
+                      "fromPort": 443,
+                      "toPort": 443,
+                      "cidrIpv4": "10.0.0.0/8"
+                    }
+                  ]
+                }
+              },
+              "requestID": "12345678-90ab-cdef-1234-567890abcdef",
+              "eventID": "abcdef12-3456-7890-abcd-ef1234567890",
+              "readOnly": false,
+              "eventType": "AwsApiCall",
+              "managementEvent": true,
+              "recipientAccountId": "123456789012"
+            }
+          ]
+        }
+      ],
+      "vpc_flow_logs": [
+        {
+          "version": 2,
+          "account-id": "123456789012",
+          "interface-id": "eni-1a2b3c4d5e6f7890",
+          "srcaddr": "10.0.1.50",
+          "dstaddr": "10.0.3.100",
+          "srcport": 45632,
+          "dstport": 443,
+          "protocol": 6,
+          "packets": 5,
+          "bytes": 650,
+          "start": 1722855600,
+          "end": 1722855610,
+          "action": "REJECT",
+          "log-status": "OK",
+          "vpc-id": "vpc-12345678",
+          "subnet-id": "subnet-11111111",
+          "instance-id": "i-1111111111111111",
+          "tcp-flags": 2,
+          "type": "IPv4",
+          "pkt-srcaddr": "10.0.1.50",
+          "pkt-dstaddr": "10.0.3.100",
+          "region": "us-west-2",
+          "az-id": "usw2-az1",
+          "sublocation-type": "wavelength",
+          "sublocation-id": "wl1-sfo-wlz-1",
+          "pkt-src-aws-service": "EC2",
+          "pkt-dst-aws-service": "EC2",
+          "flow-direction": "egress",
+          "traffic-path": 1
+        },
+        {
+          "version": 2,
+          "account-id": "123456789012",
+          "interface-id": "eni-2b3c4d5e6f789012",
+          "srcaddr": "10.0.2.75",
+          "dstaddr": "10.0.3.100",
+          "srcport": 38291,
+          "dstport": 443,
+          "protocol": 6,
+          "packets": 8,
+          "bytes": 920,
+          "start": 1722855605,
+          "end": 1722855615,
+          "action": "REJECT",
+          "log-status": "OK",
+          "vpc-id": "vpc-12345678",
+          "subnet-id": "subnet-22222222",
+          "instance-id": "i-2222222222222222",
+          "tcp-flags": 2,
+          "type": "IPv4",
+          "region": "us-west-2"
+        }
+      ],
+      "trusted_advisor_checks": {
+        "result": {
+          "checkId": "HCP4007jGY",
+          "timestamp": "2025-08-05T11:25:00.000Z",
+          "status": "error",
+          "resourcesSummary": {
+            "resourcesProcessed": 25,
+            "resourcesFlagged": 8,
+            "resourcesIgnored": 0,
+            "resourcesSuppressed": 0
+          },
+          "flaggedResources": [
+            {
+              "resourceId": "sg-0123456789abcdef0",
+              "status": "error",
+              "region": "us-west-2",
+              "isSuppressed": false,
+              "metadata": [
+                "sg-0123456789abcdef0",
+                "app-backend-sg",
+                "vpc-12345678",
+                "Missing critical ingress rules",
+                "Port 443 blocked from internal subnets",
+                "15 instances affected"
+              ]
+            }
+          ]
+        }
+      },
+      "personal_health_dashboard_events": {
+        "events": [
+          {
+            "arn": "arn:aws:health:us-west-2::event/VPC/AWS_VPC_NETWORK_CONNECTIVITY_ISSUE/AWS_VPC_NETWORK_CONNECTIVITY_ISSUE_87654321",
+            "service": "VPC",
+            "eventTypeCode": "AWS_VPC_NETWORK_CONNECTIVITY_ISSUE",
+            "eventTypeCategory": "issue",
+            "region": "us-west-2",
+            "startTime": "2025-08-05T11:19:00Z",
+            "lastUpdatedTime": "2025-08-05T11:25:00Z",
+            "statusCode": "open",
+            "eventScopeCode": "ACCOUNT_SPECIFIC"
+          }
+        ],
+        "eventDetails": [
+          {
+            "event": {
+              "arn": "arn:aws:health:us-west-2::event/VPC/AWS_VPC_NETWORK_CONNECTIVITY_ISSUE/AWS_VPC_NETWORK_CONNECTIVITY_ISSUE_87654321"
+            },
+            "eventDescription": {
+              "latestDescription": "We are investigating reports of network connectivity issues in your VPC vpc-12345678. Multiple security group changes have been detected that may be blocking legitimate traffic."
+            },
+            "eventMetadata": {
+              "affected_vpc": "vpc-12345678",
+              "affected_security_groups": "sg-0123456789abcdef0",
+              "blocked_connections": "450+",
+              "recommendation": "Review recent security group changes"
+            }
+          }
+        ],
+        "affectedEntities": [
+          {
+            "entityArn": "arn:aws:ec2:us-west-2:123456789012:instance/i-1111111111111111",
+            "eventArn": "arn:aws:health:us-west-2::event/VPC/AWS_VPC_NETWORK_CONNECTIVITY_ISSUE/AWS_VPC_NETWORK_CONNECTIVITY_ISSUE_87654321",
+            "entityValue": "i-1111111111111111",
+            "entityUrl": "https://console.aws.amazon.com/ec2/v2/home?region=us-west-2#Instances:search=i-1111111111111111",
+            "awsAccountId": "123456789012",
+            "lastUpdatedTime": "2025-08-05T11:20:00Z",
+            "statusCode": "IMPAIRED",
+            "tags": {
+              "Name": "app-backend-01"
+            }
+          }
+        ]
+      },
+      "correlation_and_root_cause": {
+        "correlated_events": [
+          {
+            "source": "Change Calendar",
+            "event": "Security group compliance update approved",
+            "time": "T-20min",
+            "relevance": "HIGH"
+          },
+          {
+            "source": "CloudTrail",
+            "event": "Critical ingress rule revoked from sg-0123456789abcdef0",
+            "time": "T-5min",
+            "relevance": "CRITICAL"
+          },
+          {
+            "source": "VPC Flow Logs",
+            "event": "450+ REJECT actions detected",
+            "time": "T-0min",
+            "relevance": "CRITICAL"
+          },
+          {
+            "source": "OpsItem",
+            "event": "Network connectivity loss incident created",
+            "time": "T+1min",
+            "relevance": "HIGH"
+          }
+        ],
+        "root_cause": "Security group rule removal during compliance update inadvertently blocked internal subnet communication on port 443",
+        "remediation": {
+          "immediate": [
+            "Restore ingress rule for 10.0.0.0/8 on port 443 to sg-0123456789abcdef0",
+            "Verify connectivity from all application subnets"
+          ],
+          "preventive": [
+            "Implement security group change testing in staging",
+            "Use AWS Config rules to prevent critical rule removal",
+            "Document minimum required security group rules"
+          ]
+        }
+      }
+    },
+    {
+      "id": "INC-003",
+      "name": "API Throttling During Peak Load",
+      "aws_systems_manager_change_calendar": {
+        "changeRequests": [
+          {
+            "changeRequestId": "chr-5a4b3c2d1e0f9876",
+            "changeRequestName": "Deploy Auto-Scaling Update",
+            "status": "APPROVED",
+            "startTime": "2025-08-05T12:00:00Z",
+            "endTime": "2025-08-05T13:00:00Z",
+            "approvedBy": "arn:aws:iam::123456789012:user/devops-lead",
+            "documentName": "AWS-UpdateAutoScalingGroup",
+            "documentVersion": "$LATEST",
+            "changeDetails": {
+              "changeType": "EMERGENCY",
+              "description": "Emergency scaling for flash sale event",
+              "reason": "Anticipated 10x traffic increase"
+            }
+          }
+        ]
+      },
+      "aws_systems_manager_opsitems": {
+        "opsItemId": "oi-fedcba0987654321",
+        "createdTime": "2025-08-05T12:30:00Z",
+        "createdBy": "arn:aws:sts::123456789012:assumed-role/AutoScalingMonitor",
+        "title": "API Throttling Detected - EC2 RunInstances",
+        "source": "CloudWatch",
+        "operationalData": {
+          "/aws/resources": {
+            "type": "String",
+            "value": "[{\"arn\":\"arn:aws:autoscaling:us-west-2:123456789012:autoScalingGroup:*:autoScalingGroupName/app-asg\"}]"
+          },
+          "/aws/cloudwatch": {
+            "type": "String",
+            "value": "{\"metricName\":\"ThrottledRequests\",\"value\":150,\"unit\":\"Count\"}"
+          },
+          "/aws/runbook": {
+            "type": "String",
+            "value": "AWS-ImplementAPIRetryLogic"
+          }
+        },
+        "status": "Open",
+        "severity": "2",
+        "category": "Performance",
+        "relatedOpsItems": [
+          {
+            "opsItemId": "oi-1122334455667788"
+          }
+        ]
+      },
+      "cloudtrail_events": [
+        {
+          "Records": [
+            {
+              "eventVersion": "1.08",
+              "userIdentity": {
+                "type": "AssumedRole",
+                "principalId": "AIDAI23HXD2O4VEXAMPLE:AutoScalingGroup",
+                "arn": "arn:aws:sts::123456789012:assumed-role/AutoScalingRole/AutoScalingGroup",
+                "accountId": "123456789012",
+                "accessKeyId": "ASIAIOSFODNN7EXAMPLE"
+              },
+              "eventTime": "2025-08-05T12:30:00Z",
+              "eventSource": "ec2.amazonaws.com",
+              "eventName": "RunInstances",
+              "awsRegion": "us-west-2",
+              "sourceIPAddress": "autoscaling.amazonaws.com",
+              "userAgent": "autoscaling.amazonaws.com",
+              "errorCode": "Client.RequestLimitExceeded",
+              "errorMessage": "Request limit exceeded for RunInstances. Please retry with exponential backoff.",
+              "requestParameters": {
+                "instancesSet": {
+                  "items": [
+                    {
+                      "imageId": "ami-0abcdef1234567890",
+                      "minCount": 1,
+                      "maxCount": 1,
+                      "instanceType": "t3.medium"
+                    }
+                  ]
+                }
+              },
+              "responseElements": null,
+              "requestID": "98765432-1234-5678-90ab-cdef12345678",
+              "eventID": "11111111-2222-3333-4444-555555555555",
+              "readOnly": false,
+              "eventType": "AwsApiCall",
+              "apiVersion": "2016-11-15",
+              "managementEvent": true,
+              "recipientAccountId": "123456789012",
+              "errorKind": "ThrottlingException",
+              "errorBucket": "Client"
+            }
+          ]
+        }
+      ],
+      "vpc_flow_logs": [
+        {
+          "version": 2,
+          "account-id": "123456789012",
+          "interface-id": "eni-autoscaling-nat",
+          "srcaddr": "10.0.4.200",
+          "dstaddr": "52.94.228.100",
+          "srcport": 45678,
+          "dstport": 443,
+          "protocol": 6,
+          "packets": 100,
+          "bytes": 12000,
+          "start": 1722858600,
+          "end": 1722858660,
+          "action": "ACCEPT",
+          "log-status": "OK",
+          "vpc-id": "vpc-12345678",
+          "subnet-id": "subnet-44444444",
+          "tcp-flags": 19,
+          "type": "IPv4",
+          "region": "us-west-2",
+          "pkt-dst-aws-service": "EC2"
+        }
+      ],
+      "trusted_advisor_checks": {
+        "result": {
+          "checkId": "Hs4Ma3G120",
+          "timestamp": "2025-08-05T12:35:00.000Z",
+          "status": "error",
+          "resourcesSummary": {
+            "resourcesProcessed": 50,
+            "resourcesFlagged": 12,
+            "resourcesIgnored": 0,
+            "resourcesSuppressed": 0
+          },
+          "flaggedResources": [
+            {
+              "resourceId": "EC2:RunInstances:us-west-2",
+              "status": "error",
+              "region": "us-west-2",
+              "isSuppressed": false,
+              "metadata": [
+                "EC2",
+                "RunInstances",
+                "us-west-2",
+                "150 requests/minute",
+                "100 requests/minute (limit)",
+                "Implement exponential backoff",
+                "Consider batch operations"
+              ]
+            }
+          ]
+        }
+      },
+      "personal_health_dashboard_events": {
+        "events": [
+          {
+            "arn": "arn:aws:health:us-west-2::event/EC2/AWS_EC2_API_THROTTLING/AWS_EC2_API_THROTTLING_33333333",
+            "service": "EC2",
+            "eventTypeCode": "AWS_EC2_API_THROTTLING",
+            "eventTypeCategory": "accountNotification",
+            "region": "us-west-2",
+            "startTime": "2025-08-05T12:30:00Z",
+            "lastUpdatedTime": "2025-08-05T12:35:00Z",
+            "statusCode": "open",
+            "eventScopeCode": "ACCOUNT_SPECIFIC"
+          }
+        ],
+        "eventDetails": [
+          {
+            "event": {
+              "arn": "arn:aws:health:us-west-2::event/EC2/AWS_EC2_API_THROTTLING/AWS_EC2_API_THROTTLING_33333333"
+            },
+            "eventDescription": {
+              "latestDescription": "Your AWS account is experiencing API throttling for EC2 RunInstances operations. Current rate: 150 requests/minute. Limit: 100 requests/minute. Please implement retry logic with exponential backoff."
+            },
+            "eventMetadata": {
+              "api_operation": "RunInstances",
+              "current_rate": "150 req/min",
+              "rate_limit": "100 req/min",
+              "throttled_requests": "50",
+              "recommendation": "Use SDK retry configuration"
+            }
+          }
+        ]
+      },
+      "correlation_and_root_cause": {
+        "correlated_events": [
+          {
+            "source": "Change Calendar",
+            "event": "Emergency auto-scaling deployment for flash sale",
+            "time": "T-30min",
+            "relevance": "HIGH"
+          },
+          {
+            "source": "CloudWatch",
+            "event": "Auto-scaling triggered - 10x traffic spike",
+            "time": "T-1min",
+            "relevance": "HIGH"
+          },
+          {
+            "source": "CloudTrail",
+            "event": "RequestLimitExceeded errors begin",
+            "time": "T-0min",
+            "relevance": "CRITICAL"
+          },
+          {
+            "source": "OpsItem",
+            "event": "API throttling incident auto-created",
+            "time": "T+30sec",
+            "relevance": "HIGH"
+          }
+        ],
+        "root_cause": "Auto-scaling group attempting 150 RunInstances API calls per minute during flash sale, exceeding the 100/minute limit",
+        "remediation": {
+          "immediate": [
+            "Configure SDK retry with exponential backoff",
+            "Reduce scaling batch size from 10 to 5 instances",
+            "Add jitter to retry intervals"
+          ],
+          "preventive": [
+            "Request API limit increase for RunInstances",
+            "Implement pre-warming for anticipated events",
+            "Use predictive scaling instead of reactive",
+            "Configure API call rate limiting in code"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,416 @@
+{
+  "test_cases": [
+    {
+      "id": "TEST-001",
+      "name": "EC2 Service Quota Exceeded",
+      "logs": {
+        "cloudtrail": [
+          {
+            "eventTime": "2025-08-05T10:45:00Z",
+            "eventName": "RunInstances",
+            "errorCode": "Client.InstanceLimitExceeded",
+            "errorMessage": "You have requested more instances (25) than your current instance limit of 20 allows for the specified instance type. Please visit http://aws.amazon.com/contact-us/ec2-request to request an adjustment to this limit.",
+            "requestParameters": {
+              "instancesSet": {
+                "items": [
+                  {
+                    "maxCount": 25,
+                    "minCount": 25,
+                    "instanceType": "m5.large"
+                  }
+                ]
+              }
+            },
+            "sourceIPAddress": "10.0.1.45",
+            "userAgent": "terraform/1.3.0",
+            "awsRegion": "us-west-2",
+            "quotaId": "L-1216C47A"
+          },
+          {
+            "eventTime": "2025-08-05T10:46:00Z",
+            "eventName": "RunInstances",
+            "errorCode": "Client.InstanceLimitExceeded",
+            "errorMessage": "Instance limit exceeded for m5.large in us-west-2",
+            "requestParameters": {
+              "instancesSet": {
+                "items": [
+                  {
+                    "maxCount": 10,
+                    "minCount": 10,
+                    "instanceType": "m5.large"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "vpc_flow_logs": [],
+        "trusted_advisor": [
+          {
+            "checkName": "Service Limits",
+            "checkId": "eW7HH0l7J9",
+            "status": "error",
+            "timestamp": "2025-08-05T10:47:00Z",
+            "resourcesSummary": {
+              "resourcesProcessed": 15,
+              "resourcesFlagged": 3,
+              "resourcesIgnored": 0,
+              "resourcesSuppressed": 0
+            },
+            "categorySpecificSummary": {
+              "costOptimizing": {
+                "estimatedMonthlySavings": 0.0,
+                "estimatedPercentMonthlySavings": 0.0
+              }
+            },
+            "flaggedResources": [
+              {
+                "status": "error",
+                "region": "us-west-2",
+                "resourceId": "EC2/On-Demand instances - Standard (A, C, D, H, I, M, R, T, Z)",
+                "metadata": [
+                  "us-west-2",
+                  "EC2",
+                  "On-Demand instances - Standard (A, C, D, H, I, M, R, T, Z)",
+                  "20",
+                  "20",
+                  "Yellow"
+                ]
+              }
+            ]
+          }
+        ],
+        "personal_health_dashboard": [
+          {
+            "eventArn": "arn:aws:health:us-west-2::event/EC2/AWS_EC2_INSTANCE_LIMIT_EXCEEDED",
+            "service": "EC2",
+            "eventTypeCode": "AWS_EC2_INSTANCE_LIMIT_EXCEEDED",
+            "eventTypeCategory": "accountNotification",
+            "region": "us-west-2",
+            "startTime": "2025-08-05T10:45:00Z",
+            "eventDescription": "Your account has reached the limit for m5.large instances in us-west-2. Current usage: 20/20",
+            "affectedEntities": []
+          }
+        ]
+      },
+      "issue_detection": {
+        "detected_issue": "EC2 instance quota exceeded for m5.large instances in us-west-2",
+        "severity": "high",
+        "impact": "Unable to launch new instances for auto-scaling or deployments"
+      },
+      "root_cause_analysis": {
+        "root_cause": "EC2 service quota (20 instances) insufficient for requested deployment of 25 m5.large instances",
+        "contributing_factors": [
+          "Terraform deployment attempted to provision more instances than allowed",
+          "No pre-deployment quota validation",
+          "Instance quota not increased prior to scaling event"
+        ],
+        "quota_details": {
+          "quota_id": "L-1216C47A",
+          "current_limit": 20,
+          "requested": 25,
+          "instance_type": "m5.large",
+          "region": "us-west-2"
+        }
+      },
+      "recommendations": {
+        "immediate": [
+          "Request quota increase via Service Quotas console for quota ID L-1216C47A",
+          "Alternative: Use AWS Support Center to request expedited quota increase",
+          "Reduce deployment size to fit within current quota"
+        ],
+        "long_term": [
+          "Implement pre-deployment quota checks in CI/CD pipeline",
+          "Set up CloudWatch alarms for quota utilization above 80%",
+          "Establish quota management process for anticipated growth"
+        ]
+      }
+    },
+    {
+      "id": "TEST-002",
+      "name": "Network Connectivity Issue",
+      "logs": {
+        "cloudtrail": [
+          {
+            "eventTime": "2025-08-05T11:15:00Z",
+            "eventName": "AuthorizeSecurityGroupIngress",
+            "eventSource": "ec2.amazonaws.com",
+            "sourceIPAddress": "10.0.2.100",
+            "userAgent": "console.ec2.amazonaws.com",
+            "requestParameters": {
+              "groupId": "sg-0123456789abcdef0",
+              "ipPermissions": {
+                "items": [
+                  {
+                    "ipProtocol": "tcp",
+                    "fromPort": 443,
+                    "toPort": 443,
+                    "groups": {},
+                    "ipRanges": {
+                      "items": [
+                        {
+                          "cidrIp": "10.0.0.0/8"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "vpc_flow_logs": [
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-0123456789abcdef0",
+            "srcaddr": "10.0.1.50",
+            "dstaddr": "10.0.3.100",
+            "srcport": 45632,
+            "dstport": 443,
+            "protocol": 6,
+            "packets": 5,
+            "bytes": 650,
+            "start": "2025-08-05T11:20:00Z",
+            "end": "2025-08-05T11:20:10Z",
+            "action": "REJECT",
+            "log_status": "OK"
+          },
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-0123456789abcdef1",
+            "srcaddr": "10.0.2.75",
+            "dstaddr": "10.0.3.100",
+            "srcport": 38291,
+            "dstport": 443,
+            "protocol": 6,
+            "packets": 8,
+            "bytes": 920,
+            "start": "2025-08-05T11:20:05Z",
+            "end": "2025-08-05T11:20:15Z",
+            "action": "REJECT",
+            "log_status": "OK"
+          },
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-0123456789abcdef2",
+            "srcaddr": "10.0.1.50",
+            "dstaddr": "10.0.3.101",
+            "srcport": 45633,
+            "dstport": 443,
+            "protocol": 6,
+            "packets": 3,
+            "bytes": 180,
+            "start": "2025-08-05T11:21:00Z",
+            "end": "2025-08-05T11:21:05Z",
+            "action": "REJECT",
+            "log_status": "OK"
+          }
+        ],
+        "trusted_advisor": [
+          {
+            "checkName": "Security Groups - Unrestricted Access",
+            "checkId": "HCP4007jGY",
+            "status": "warning",
+            "timestamp": "2025-08-05T11:25:00Z",
+            "resourcesSummary": {
+              "resourcesProcessed": 25,
+              "resourcesFlagged": 5,
+              "resourcesIgnored": 0,
+              "resourcesSuppressed": 0
+            },
+            "flaggedResources": [
+              {
+                "status": "warning",
+                "region": "us-west-2",
+                "resourceId": "sg-0123456789abcdef0",
+                "metadata": [
+                  "us-west-2",
+                  "sg-0123456789abcdef0",
+                  "app-backend-sg",
+                  "vpc-12345678",
+                  "Yellow"
+                ]
+              }
+            ]
+          }
+        ],
+        "personal_health_dashboard": [
+          {
+            "eventArn": "arn:aws:health:us-west-2::event/EC2/AWS_EC2_NETWORK_PERFORMANCE_DEGRADATION",
+            "service": "EC2",
+            "eventTypeCode": "AWS_EC2_NETWORK_PERFORMANCE_DEGRADATION",
+            "eventTypeCategory": "issue",
+            "region": "us-west-2",
+            "startTime": "2025-08-05T11:19:00Z",
+            "eventDescription": "Increased network latency detected in us-west-2a availability zone",
+            "affectedEntities": [
+              {
+                "entityArn": "arn:aws:ec2:us-west-2:123456789012:instance/i-0123456789abcdef0",
+                "entityValue": "i-0123456789abcdef0"
+              },
+              {
+                "entityArn": "arn:aws:ec2:us-west-2:123456789012:instance/i-0123456789abcdef1",
+                "entityValue": "i-0123456789abcdef1"
+              }
+            ]
+          }
+        ]
+      },
+      "issue_detection": {
+        "detected_issue": "Multiple EC2 instances experiencing connectivity failures due to security group misconfiguration",
+        "severity": "critical",
+        "impact": "Backend services unreachable, causing application outage"
+      },
+      "root_cause_analysis": {
+        "root_cause": "Recent security group modification removed critical ingress rules, blocking inter-VPC communication",
+        "contributing_factors": [
+          "Security group sg-0123456789abcdef0 missing ingress rules for internal traffic",
+          "VPC Flow Logs show REJECT actions for legitimate traffic",
+          "Network performance degradation in us-west-2a compounding the issue"
+        ],
+        "network_details": {
+          "affected_security_group": "sg-0123456789abcdef0",
+          "blocked_traffic_pattern": "10.0.1.0/24 and 10.0.2.0/24 to 10.0.3.0/24 on port 443",
+          "reject_count": "15 connections in 5 minutes"
+        }
+      },
+      "recommendations": {
+        "immediate": [
+          "Add ingress rule to sg-0123456789abcdef0 allowing 10.0.0.0/8 on port 443",
+          "Verify network ACLs are not blocking traffic",
+          "Check route tables for proper subnet associations"
+        ],
+        "long_term": [
+          "Implement infrastructure as code for security group management",
+          "Set up VPC Flow Log monitoring with alerts for REJECT spikes",
+          "Create change approval process for security group modifications",
+          "Document network security baseline configuration"
+        ]
+      }
+    },
+    {
+      "id": "TEST-003",
+      "name": "API Throttling Incident",
+      "logs": {
+        "cloudtrail": [
+          {
+            "eventTime": "2025-08-05T12:30:00Z",
+            "eventName": "RunInstances",
+            "eventSource": "ec2.amazonaws.com",
+            "errorCode": "Client.RequestLimitExceeded",
+            "errorMessage": "Request limit exceeded.",
+            "sourceIPAddress": "10.0.4.200",
+            "userAgent": "aws-sdk-python/1.26.137",
+            "requestParameters": {
+              "instancesSet": {
+                "items": [
+                  {
+                    "imageId": "ami-0123456789abcdef0",
+                    "minCount": 1,
+                    "maxCount": 1
+                  }
+                ]
+              }
+            },
+            "responseElements": null,
+            "requestID": "12345678-1234-1234-1234-123456789012",
+            "eventID": "87654321-4321-4321-4321-210987654321"
+          },
+          {
+            "eventTime": "2025-08-05T12:30:01Z",
+            "eventName": "RunInstances",
+            "errorCode": "Client.RequestLimitExceeded",
+            "errorMessage": "Request limit exceeded.",
+            "sourceIPAddress": "10.0.4.200",
+            "userAgent": "aws-sdk-python/1.26.137"
+          },
+          {
+            "eventTime": "2025-08-05T12:30:02Z",
+            "eventName": "RunInstances",
+            "errorCode": "Client.RequestLimitExceeded",
+            "errorMessage": "Request limit exceeded.",
+            "sourceIPAddress": "10.0.4.200",
+            "userAgent": "aws-sdk-python/1.26.137"
+          }
+        ],
+        "vpc_flow_logs": [],
+        "trusted_advisor": [
+          {
+            "checkName": "AWS API Usage",
+            "checkId": "Hs4Ma3G120",
+            "status": "error",
+            "timestamp": "2025-08-05T12:35:00Z",
+            "resourcesSummary": {
+              "resourcesProcessed": 50,
+              "resourcesFlagged": 8,
+              "resourcesIgnored": 0,
+              "resourcesSuppressed": 0
+            },
+            "flaggedResources": [
+              {
+                "status": "error",
+                "region": "us-west-2",
+                "resourceId": "EC2:RunInstances",
+                "metadata": [
+                  "EC2",
+                  "RunInstances",
+                  "us-west-2",
+                  "150 calls/minute",
+                  "100 calls/minute limit",
+                  "Red"
+                ]
+              }
+            ]
+          }
+        ],
+        "personal_health_dashboard": [
+          {
+            "eventArn": "arn:aws:health:us-west-2::event/EC2/AWS_EC2_API_THROTTLING",
+            "service": "EC2",
+            "eventTypeCode": "AWS_EC2_API_THROTTLING",
+            "eventTypeCategory": "accountNotification",
+            "region": "us-west-2",
+            "startTime": "2025-08-05T12:30:00Z",
+            "eventDescription": "Your account is experiencing EC2 API throttling. Consider implementing exponential backoff.",
+            "affectedEntities": []
+          }
+        ]
+      },
+      "issue_detection": {
+        "detected_issue": "EC2 RunInstances API calls being throttled due to excessive request rate",
+        "severity": "high",
+        "impact": "Auto-scaling and deployment operations failing"
+      },
+      "root_cause_analysis": {
+        "root_cause": "Application making 150 API calls/minute exceeding the 100 calls/minute limit without retry logic",
+        "contributing_factors": [
+          "No exponential backoff implemented in SDK client",
+          "Batch processing script creating instances individually",
+          "Multiple parallel processes making simultaneous API calls"
+        ],
+        "api_details": {
+          "api_operation": "RunInstances",
+          "current_rate": "150 calls/minute",
+          "limit": "100 calls/minute",
+          "error_rate": "33%"
+        }
+      },
+      "recommendations": {
+        "immediate": [
+          "Implement exponential backoff with jitter in API client",
+          "Reduce API call frequency by batching operations",
+          "Add 1-2 second delays between API calls"
+        ],
+        "long_term": [
+          "Refactor code to use batch APIs where available",
+          "Implement centralized API rate limiting service",
+          "Set up CloudWatch alarms for API throttling metrics",
+          "Consider requesting API limit increase if justified by workload"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,656 @@
+{
+  "additional_scenarios": [
+    {
+      "id": "INC-004",
+      "name": "RDS Database Connection Pool Exhaustion",
+      "description": "Production RDS instance experiencing connection failures due to exhausted connection pool after security group modification",
+      "logs": {
+        "cloudtrail": [
+          {
+            "eventTime": "2025-08-05T08:15:00Z",
+            "eventName": "ModifyDBInstance",
+            "eventSource": "rds.amazonaws.com",
+            "sourceIPAddress": "10.0.5.50",
+            "userAgent": "console.rds.amazonaws.com",
+            "requestParameters": {
+              "dBInstanceIdentifier": "prod-mysql-primary",
+              "applyImmediately": true,
+              "vpcSecurityGroupIds": ["sg-0987654321fedcba0", "sg-1234567890abcdef1"]
+            },
+            "responseElements": {
+              "dBInstanceIdentifier": "prod-mysql-primary",
+              "dBInstanceStatus": "modifying"
+            }
+          },
+          {
+            "eventTime": "2025-08-05T08:30:00Z",
+            "eventName": "AuthorizeDBSecurityGroupIngress",
+            "eventSource": "rds.amazonaws.com",
+            "errorCode": "Client.InvalidParameterValue",
+            "errorMessage": "Cannot authorize ingress rules for VPC security groups",
+            "requestParameters": {
+              "dBSecurityGroupName": "prod-db-sg",
+              "cidrip": "10.0.0.0/16"
+            }
+          },
+          {
+            "eventTime": "2025-08-05T08:45:00Z",
+            "eventName": "DescribeDBInstances",
+            "eventSource": "rds.amazonaws.com",
+            "responseElements": {
+              "dBInstances": [{
+                "dBInstanceIdentifier": "prod-mysql-primary",
+                "dBInstanceStatus": "available",
+                "endpoint": {
+                  "address": "prod-mysql-primary.c9akciq32.us-west-2.rds.amazonaws.com",
+                  "port": 3306
+                }
+              }]
+            }
+          }
+        ],
+        "vpc_flow_logs": [
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-rds-0123456",
+            "srcaddr": "10.0.1.100",
+            "dstaddr": "10.0.10.50",
+            "srcport": 45123,
+            "dstport": 3306,
+            "protocol": 6,
+            "packets": 50,
+            "bytes": 5000,
+            "start": "2025-08-05T09:00:00Z",
+            "end": "2025-08-05T09:00:30Z",
+            "action": "ACCEPT",
+            "log_status": "OK"
+          },
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-rds-0123456",
+            "srcaddr": "10.0.2.200",
+            "dstaddr": "10.0.10.50",
+            "srcport": 38456,
+            "dstport": 3306,
+            "protocol": 6,
+            "packets": 3,
+            "bytes": 180,
+            "start": "2025-08-05T09:01:00Z",
+            "end": "2025-08-05T09:01:05Z",
+            "action": "REJECT",
+            "log_status": "OK"
+          },
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-rds-0123456",
+            "srcaddr": "10.0.3.150",
+            "dstaddr": "10.0.10.50",
+            "srcport": 52341,
+            "dstport": 3306,
+            "protocol": 6,
+            "packets": 5,
+            "bytes": 300,
+            "start": "2025-08-05T09:02:00Z",
+            "end": "2025-08-05T09:02:10Z",
+            "action": "REJECT",
+            "log_status": "OK"
+          }
+        ],
+        "trusted_advisor": [
+          {
+            "checkName": "RDS Idle DB Instances",
+            "checkId": "Ti39halfu8",
+            "status": "ok",
+            "timestamp": "2025-08-05T09:15:00Z"
+          },
+          {
+            "checkName": "RDS Security Group Access Risk",
+            "checkId": "nNauJisYIT",
+            "status": "error",
+            "timestamp": "2025-08-05T09:15:00Z",
+            "flaggedResources": [
+              {
+                "status": "error",
+                "region": "us-west-2",
+                "resourceId": "prod-mysql-primary",
+                "metadata": [
+                  "prod-mysql-primary",
+                  "MySQL 8.0.35",
+                  "db.r5.2xlarge",
+                  "Security group allows limited access",
+                  "Red"
+                ]
+              }
+            ]
+          }
+        ],
+        "personal_health_dashboard": [
+          {
+            "eventArn": "arn:aws:health:us-west-2::event/RDS/AWS_RDS_CONNECTIVITY_ISSUE",
+            "service": "RDS",
+            "eventTypeCode": "AWS_RDS_CONNECTIVITY_ISSUE",
+            "eventTypeCategory": "issue",
+            "region": "us-west-2",
+            "startTime": "2025-08-05T09:00:00Z",
+            "eventDescription": "RDS instance prod-mysql-primary experiencing connection failures from multiple sources",
+            "affectedEntities": [
+              {
+                "entityArn": "arn:aws:rds:us-west-2:123456789012:db:prod-mysql-primary",
+                "entityValue": "prod-mysql-primary"
+              }
+            ]
+          }
+        ],
+        "cloudwatch_logs": [
+          {
+            "timestamp": "2025-08-05T09:00:45Z",
+            "message": "ERROR: MySQLError: Too many connections",
+            "logGroup": "/aws/rds/instance/prod-mysql-primary/error",
+            "logStream": "prod-mysql-primary"
+          },
+          {
+            "timestamp": "2025-08-05T09:01:00Z",
+            "message": "WARNING: Connection pool exhausted, current connections: 150/150",
+            "logGroup": "/aws/lambda/app-backend",
+            "logStream": "2025/08/05/[$LATEST]abc123"
+          },
+          {
+            "timestamp": "2025-08-05T09:02:00Z",
+            "message": "CRITICAL: Database connection timeout after 30 seconds",
+            "logGroup": "/aws/ecs/app-service",
+            "logStream": "app/app-task/12345"
+          }
+        ]
+      },
+      "correlation_analysis": {
+        "timeline": [
+          {
+            "time": "T-60min",
+            "event": "Security group modification on RDS instance",
+            "source": "CloudTrail",
+            "impact": "Changed allowed ingress rules"
+          },
+          {
+            "time": "T-45min",
+            "event": "Failed attempt to authorize DB security group",
+            "source": "CloudTrail",
+            "impact": "Misconfiguration attempt"
+          },
+          {
+            "time": "T-30min",
+            "event": "First REJECT entries in VPC Flow Logs",
+            "source": "VPC Flow Logs",
+            "impact": "Some application servers losing connectivity"
+          },
+          {
+            "time": "T-15min",
+            "event": "Connection pool exhaustion errors",
+            "source": "CloudWatch Logs",
+            "impact": "Remaining connections saturated"
+          },
+          {
+            "time": "T-0min",
+            "event": "Complete database connectivity failure",
+            "source": "Personal Health Dashboard",
+            "impact": "Application outage"
+          }
+        ],
+        "security_group_changes": {
+          "before": ["sg-0987654321fedcba0"],
+          "after": ["sg-0987654321fedcba0", "sg-1234567890abcdef1"],
+          "analysis": "New security group sg-1234567890abcdef1 has restrictive rules that block application servers in subnets 10.0.2.0/24 and 10.0.3.0/24"
+        }
+      },
+      "root_cause": "Security group modification blocked database connections from 2 out of 3 application subnets, causing remaining connections to become saturated and exhaust the connection pool",
+      "business_impact": {
+        "severity": "critical",
+        "affected_services": ["Order Processing", "User Authentication", "Inventory Management"],
+        "estimated_downtime": "45 minutes",
+        "affected_users": "~15,000"
+      },
+      "resolution_steps": [
+        "1. Immediately remove sg-1234567890abcdef1 from RDS instance",
+        "2. Or add ingress rules to sg-1234567890abcdef1 for 10.0.2.0/24 and 10.0.3.0/24 on port 3306",
+        "3. Restart affected application services to clear stale connections",
+        "4. Monitor connection pool metrics to ensure recovery",
+        "5. Implement connection retry logic with exponential backoff"
+      ],
+      "prevention_measures": [
+        "Implement security group change validation before applying to production",
+        "Set up CloudWatch alarms for connection pool utilization > 80%",
+        "Create automated tests for database connectivity from all application subnets",
+        "Document security group requirements and maintain as code",
+        "Implement gradual rollout for infrastructure changes"
+      ]
+    },
+    {
+      "id": "INC-005",
+      "name": "Lambda Cold Start Storm During Black Friday",
+      "description": "Massive spike in Lambda cold starts causing timeout failures during peak shopping period",
+      "logs": {
+        "cloudtrail": [
+          {
+            "eventTime": "2025-08-05T14:00:00Z",
+            "eventName": "UpdateFunctionConfiguration",
+            "eventSource": "lambda.amazonaws.com",
+            "sourceIPAddress": "10.0.6.75",
+            "userAgent": "aws-cli/2.13.0",
+            "requestParameters": {
+              "functionName": "checkout-processor",
+              "reservedConcurrentExecutions": 100
+            }
+          },
+          {
+            "eventTime": "2025-08-05T14:30:00Z",
+            "eventName": "PutFunctionConcurrency",
+            "eventSource": "lambda.amazonaws.com",
+            "errorCode": "TooManyRequestsException",
+            "errorMessage": "Rate exceeded",
+            "requestParameters": {
+              "functionName": "checkout-processor",
+              "reservedConcurrentExecutions": 500
+            }
+          },
+          {
+            "eventTime": "2025-08-05T14:35:00Z",
+            "eventName": "CreateEventSourceMapping",
+            "eventSource": "lambda.amazonaws.com",
+            "requestParameters": {
+              "functionName": "checkout-processor",
+              "eventSourceArn": "arn:aws:sqs:us-west-2:123456789012:checkout-dlq"
+            }
+          }
+        ],
+        "vpc_flow_logs": [
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-lambda-001",
+            "srcaddr": "10.0.7.100",
+            "dstaddr": "10.0.8.50",
+            "srcport": 443,
+            "dstport": 45678,
+            "protocol": 6,
+            "packets": 1000,
+            "bytes": 150000,
+            "start": "2025-08-05T14:40:00Z",
+            "end": "2025-08-05T14:40:30Z",
+            "action": "ACCEPT",
+            "log_status": "OK"
+          },
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-lambda-002",
+            "srcaddr": "10.0.7.101",
+            "dstaddr": "10.0.9.25",
+            "srcport": 443,
+            "dstport": 52341,
+            "protocol": 6,
+            "packets": 5,
+            "bytes": 500,
+            "start": "2025-08-05T14:41:00Z",
+            "end": "2025-08-05T14:41:45Z",
+            "action": "ACCEPT",
+            "log_status": "OK",
+            "tcp_flags": "SYN,ACK,FIN,RST"
+          }
+        ],
+        "trusted_advisor": [
+          {
+            "checkName": "Lambda Functions with High Error Rates",
+            "checkId": "L4dfs2Q4C5",
+            "status": "error",
+            "timestamp": "2025-08-05T14:45:00Z",
+            "flaggedResources": [
+              {
+                "status": "error",
+                "region": "us-west-2",
+                "resourceId": "checkout-processor",
+                "metadata": [
+                  "checkout-processor",
+                  "Error rate: 35%",
+                  "Timeout rate: 28%",
+                  "Duration: 14500ms avg",
+                  "Red"
+                ]
+              }
+            ]
+          }
+        ],
+        "personal_health_dashboard": [
+          {
+            "eventArn": "arn:aws:health:us-west-2::event/LAMBDA/AWS_LAMBDA_PERFORMANCE_ISSUE",
+            "service": "LAMBDA",
+            "eventTypeCode": "AWS_LAMBDA_PERFORMANCE_ISSUE",
+            "eventTypeCategory": "issue",
+            "region": "us-west-2",
+            "startTime": "2025-08-05T14:30:00Z",
+            "eventDescription": "Lambda function experiencing high cold start rates and timeouts",
+            "affectedEntities": [
+              {
+                "entityArn": "arn:aws:lambda:us-west-2:123456789012:function:checkout-processor",
+                "entityValue": "checkout-processor"
+              }
+            ]
+          }
+        ],
+        "cloudwatch_logs": [
+          {
+            "timestamp": "2025-08-05T14:40:00Z",
+            "message": "REPORT RequestId: 123 Duration: 15000.00 ms Billed Duration: 15000 ms Memory Size: 3008 MB Max Memory Used: 2950 MB Init Duration: 12543.21 ms",
+            "logGroup": "/aws/lambda/checkout-processor"
+          },
+          {
+            "timestamp": "2025-08-05T14:41:00Z",
+            "message": "Task timed out after 15.00 seconds",
+            "logGroup": "/aws/lambda/checkout-processor"
+          },
+          {
+            "timestamp": "2025-08-05T14:42:00Z",
+            "message": "ERROR: ENI attachment timeout - VPC networking initialization failed",
+            "logGroup": "/aws/lambda/checkout-processor"
+          }
+        ]
+      },
+      "correlation_analysis": {
+        "timeline": [
+          {
+            "time": "T-120min",
+            "event": "Reserved concurrency set to 100 (too low for Black Friday)",
+            "source": "CloudTrail",
+            "impact": "Limited concurrent executions"
+          },
+          {
+            "time": "T-90min",
+            "event": "Traffic spike begins - Black Friday sale starts",
+            "source": "CloudWatch Metrics",
+            "impact": "Lambda invocations increase 10x"
+          },
+          {
+            "time": "T-60min",
+            "event": "First timeout errors due to cold starts",
+            "source": "CloudWatch Logs",
+            "impact": "5% error rate"
+          },
+          {
+            "time": "T-30min",
+            "event": "ENI attachment timeouts in VPC",
+            "source": "CloudWatch Logs",
+            "impact": "Cold starts taking 12+ seconds"
+          },
+          {
+            "time": "T-0min",
+            "event": "35% error rate, checkout failures",
+            "source": "Trusted Advisor",
+            "impact": "Revenue loss"
+          }
+        ],
+        "configuration_issues": {
+          "reserved_concurrency": "Set to 100, needed 500+ for Black Friday",
+          "vpc_configuration": "Lambda in VPC causing ENI attachment delays",
+          "memory_allocation": "3GB may be oversized, causing longer cold starts"
+        }
+      },
+      "root_cause": "Insufficient reserved concurrency combined with VPC-enabled Lambda functions caused extreme cold start durations during Black Friday traffic spike",
+      "business_impact": {
+        "severity": "critical",
+        "affected_services": ["Checkout", "Payment Processing", "Order Confirmation"],
+        "estimated_revenue_loss": "$150,000",
+        "affected_transactions": "~5,000"
+      },
+      "resolution_steps": [
+        "1. Increase reserved concurrency to 500 immediately",
+        "2. Implement provisioned concurrency for checkout-processor function",
+        "3. Move Lambda out of VPC if database access not required",
+        "4. Or implement VPC endpoint for S3/DynamoDB to avoid internet gateway",
+        "5. Reduce memory allocation to 1GB for faster cold starts",
+        "6. Implement SQS DLQ processing for failed transactions"
+      ],
+      "prevention_measures": [
+        "Implement Lambda provisioned concurrency for critical functions",
+        "Load test with expected Black Friday traffic patterns",
+        "Set up predictive scaling based on historical patterns",
+        "Monitor cold start duration and set alarms at 5 seconds",
+        "Consider container images with fast boot times",
+        "Implement circuit breaker pattern for graceful degradation"
+      ]
+    },
+    {
+      "id": "INC-006",
+      "name": "S3 Bucket Exposure via Misconfigured CloudFront Distribution",
+      "description": "Sensitive data exposed when CloudFront Origin Access Identity removed during security group update",
+      "logs": {
+        "cloudtrail": [
+          {
+            "eventTime": "2025-08-05T16:00:00Z",
+            "eventName": "UpdateDistribution",
+            "eventSource": "cloudfront.amazonaws.com",
+            "sourceIPAddress": "10.0.11.30",
+            "userAgent": "terraform/1.5.0",
+            "requestParameters": {
+              "id": "E1234567890ABC",
+              "distributionConfig": {
+                "origins": {
+                  "items": [{
+                    "id": "S3-private-docs",
+                    "domainName": "private-docs-bucket.s3.amazonaws.com",
+                    "s3OriginConfig": {
+                      "originAccessIdentity": ""
+                    }
+                  }]
+                }
+              }
+            }
+          },
+          {
+            "eventTime": "2025-08-05T16:05:00Z",
+            "eventName": "PutBucketPolicy",
+            "eventSource": "s3.amazonaws.com",
+            "sourceIPAddress": "10.0.11.30",
+            "requestParameters": {
+              "bucketName": "private-docs-bucket",
+              "bucketPolicy": {
+                "Version": "2012-10-17",
+                "Statement": [{
+                  "Sid": "AllowCloudFrontServicePrincipal",
+                  "Effect": "Allow",
+                  "Principal": "*",
+                  "Action": "s3:GetObject",
+                  "Resource": "arn:aws:s3:::private-docs-bucket/*"
+                }]
+              }
+            }
+          },
+          {
+            "eventTime": "2025-08-05T16:30:00Z",
+            "eventName": "GetObject",
+            "eventSource": "s3.amazonaws.com",
+            "sourceIPAddress": "198.51.100.42",
+            "userAgent": "Mozilla/5.0",
+            "requestParameters": {
+              "bucketName": "private-docs-bucket",
+              "key": "confidential/financial-report-2025.pdf"
+            },
+            "responseElements": null
+          }
+        ],
+        "vpc_flow_logs": [
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-nat-001",
+            "srcaddr": "198.51.100.42",
+            "dstaddr": "52.94.228.100",
+            "srcport": 54321,
+            "dstport": 443,
+            "protocol": 6,
+            "packets": 50,
+            "bytes": 500000,
+            "start": "2025-08-05T16:30:00Z",
+            "end": "2025-08-05T16:30:30Z",
+            "action": "ACCEPT",
+            "log_status": "OK"
+          },
+          {
+            "version": 2,
+            "account_id": "123456789012",
+            "interface_id": "eni-nat-001",
+            "srcaddr": "203.0.113.50",
+            "dstaddr": "52.94.228.100",
+            "srcport": 61234,
+            "dstport": 443,
+            "protocol": 6,
+            "packets": 25,
+            "bytes": 250000,
+            "start": "2025-08-05T16:35:00Z",
+            "end": "2025-08-05T16:35:15Z",
+            "action": "ACCEPT",
+            "log_status": "OK"
+          }
+        ],
+        "trusted_advisor": [
+          {
+            "checkName": "S3 Bucket Permissions",
+            "checkId": "Pfx0RwqBli",
+            "status": "error",
+            "timestamp": "2025-08-05T16:45:00Z",
+            "flaggedResources": [
+              {
+                "status": "error",
+                "region": "us-west-2",
+                "resourceId": "private-docs-bucket",
+                "metadata": [
+                  "private-docs-bucket",
+                  "Bucket allows public read access",
+                  "Policy allows s3:GetObject to principal *",
+                  "Contains 1,543 objects",
+                  "Red"
+                ]
+              }
+            ]
+          },
+          {
+            "checkName": "CloudFront Origin Access Identity",
+            "checkId": "W4F0RwqBli",
+            "status": "warning",
+            "timestamp": "2025-08-05T16:45:00Z",
+            "flaggedResources": [
+              {
+                "status": "warning",
+                "resourceId": "E1234567890ABC",
+                "metadata": [
+                  "Distribution using S3 origin without OAI",
+                  "Yellow"
+                ]
+              }
+            ]
+          }
+        ],
+        "personal_health_dashboard": [
+          {
+            "eventArn": "arn:aws:health:global::event/S3/AWS_S3_OPEN_ACCESS_DETECTED",
+            "service": "S3",
+            "eventTypeCode": "AWS_S3_OPEN_ACCESS_DETECTED",
+            "eventTypeCategory": "security",
+            "region": "global",
+            "startTime": "2025-08-05T16:40:00Z",
+            "eventDescription": "S3 bucket private-docs-bucket detected with public read access. Immediate action required.",
+            "affectedEntities": [
+              {
+                "entityArn": "arn:aws:s3:::private-docs-bucket",
+                "entityValue": "private-docs-bucket"
+              }
+            ]
+          }
+        ],
+        "cloudwatch_logs": [
+          {
+            "timestamp": "2025-08-05T16:35:00Z",
+            "message": "SECURITY ALERT: Unusual access pattern detected - multiple IPs accessing confidential prefix",
+            "logGroup": "/aws/s3/access-logs"
+          },
+          {
+            "timestamp": "2025-08-05T16:40:00Z",
+            "message": "WARNING: Bucket policy allows unrestricted access - Principal: *",
+            "logGroup": "/aws/lambda/security-monitor"
+          }
+        ]
+      },
+      "correlation_analysis": {
+        "timeline": [
+          {
+            "time": "T-45min",
+            "event": "CloudFront OAI removed during distribution update",
+            "source": "CloudTrail",
+            "impact": "S3 origin no longer authenticated"
+          },
+          {
+            "time": "T-40min",
+            "event": "Bucket policy updated to allow * principal",
+            "source": "CloudTrail",
+            "impact": "Public read access enabled"
+          },
+          {
+            "time": "T-15min",
+            "event": "First external access from unknown IP",
+            "source": "CloudTrail/VPC Flow Logs",
+            "impact": "Data exposure begins"
+          },
+          {
+            "time": "T-5min",
+            "event": "Multiple IPs accessing confidential prefix",
+            "source": "S3 Access Logs",
+            "impact": "Widespread data access"
+          },
+          {
+            "time": "T-0min",
+            "event": "Security alerts triggered",
+            "source": "Trusted Advisor/Health Dashboard",
+            "impact": "Incident detected"
+          }
+        ],
+        "security_analysis": {
+          "exposed_data_classification": "Confidential - Financial Reports, Customer PII",
+          "access_pattern": "15 unique IPs accessed 47 objects in 30 minutes",
+          "geographic_distribution": "Access from US, Eastern Europe, Asia",
+          "most_accessed_objects": [
+            "/confidential/financial-report-2025.pdf",
+            "/customers/pii-database-export.csv",
+            "/internal/api-keys-backup.json"
+          ]
+        }
+      },
+      "root_cause": "CloudFront Origin Access Identity was removed during infrastructure update, and compensating S3 bucket policy was incorrectly configured to allow public access instead of CloudFront service principal only",
+      "business_impact": {
+        "severity": "critical",
+        "compliance_violation": ["GDPR", "SOC2", "PCI-DSS"],
+        "data_exposed": "Financial reports, 50,000 customer records, API keys",
+        "regulatory_risk": "Potential fines up to $2M"
+      },
+      "resolution_steps": [
+        "1. IMMEDIATELY update S3 bucket policy to deny all public access",
+        "2. Re-enable CloudFront Origin Access Identity",
+        "3. Update bucket policy to allow only CloudFront OAI",
+        "4. Enable S3 Block Public Access settings",
+        "5. Rotate all exposed API keys immediately",
+        "6. Enable CloudTrail data events for the bucket",
+        "7. Notify security team and legal counsel",
+        "8. Begin incident response and customer notification process"
+      ],
+      "prevention_measures": [
+        "Enable S3 Block Public Access at account level",
+        "Implement AWS Config rules for S3 bucket policies",
+        "Use AWS Security Hub for continuous compliance monitoring",
+        "Implement infrastructure as code with security policy validation",
+        "Set up real-time alerts for S3 bucket policy changes",
+        "Regular security audits of CloudFront distributions",
+        "Implement least privilege access policies",
+        "Use AWS Macie for sensitive data discovery"
+      ]
+    }
+  ]
+}

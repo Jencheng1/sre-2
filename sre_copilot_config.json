@@ -1,6 +1,36 @@
 {
     "aws_region": "us-east-1",
     "create_agents": true,
+    "agents": {
+        "SRE-Supervisor": {
+            "agent_id": "XKVWGESIAX",
+            "description": "Coordinates analysis and response for SRE incidents"
+        },
+        "SRE-Log-Analyzer": {
+            "agent_id": "KYE8CL4NWP",
+            "description": "Analyzes log data for patterns and anomalies"
+        },
+        "SRE-Metrics-Analyzer": {
+            "agent_id": "HJZP7VBZOI",
+            "description": "Analyzes time-series metrics data"
+        },
+        "SRE-CloudTrail-Analyzer": {
+            "agent_id": "RPAXDVETHN",
+            "description": "Analyzes AWS CloudTrail logs for security and compliance"
+        },
+        "SRE-VPC-Analyzer": {
+            "agent_id": "BNFYR1YTWU",
+            "description": "Analyzes VPC Flow Logs for network traffic patterns"
+        },
+        "SRE-Trusted-Advisor-Analyzer": {
+            "agent_id": "BB2OARRB3J",
+            "description": "Analyzes AWS Trusted Advisor recommendations"
+        },
+        "SRE-Personal-Health-Analyzer": {
+            "agent_id": "WOHWA21ZBK",
+            "description": "Analyzes AWS Personal Health Dashboard events"
+        }
+    },
     "supervisor_agent": {
         "name": "SRE-Supervisor",
         "description": "Coordinates analysis and response for SRE incidents",
