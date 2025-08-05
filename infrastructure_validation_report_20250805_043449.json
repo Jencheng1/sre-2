@@ -1,0 +1,40 @@
+{
+  "lambda_functions": {
+    "sre-supervisor-lambda": true,
+    "sre-supervisor-lambda-mcp": true,
+    "sre-cloudtrail-agent-lambda": true,
+    "sre-vpc-agent-lambda": true,
+    "sre-trusted-advisor-agent-lambda": true,
+    "sre-personal-health-agent-lambda": true,
+    "sre-knowledge-base-agent-lambda": true,
+    "sre-log-analyzer-lambda": true,
+    "sre-metrics-analyzer-lambda": true,
+    "sre-opsitem-indexer-lambda": true
+  },
+  "bedrock_agents": {
+    "SRE-Supervisor": true,
+    "SRE-Log-Analyzer": true,
+    "SRE-Metrics-Analyzer": true,
+    "SRE-CloudTrail-Analyzer": true,
+    "SRE-VPC-Analyzer": false,
+    "SRE-Trusted-Advisor-Analyzer": false,
+    "SRE-Personal-Health-Analyzer": false
+  },
+  "action_groups": {
+    "SRE-Supervisor_supervisor-actions": true,
+    "SRE-Log-Analyzer_log-analysis-actions": true,
+    "SRE-Metrics-Analyzer_metrics-analysis-actions": true
+  },
+  "dynamodb_tables": {
+    "sre-knowledge-base": true,
+    "sre-knowledge-base-vectors": true
+  },
+  "event_rules": {
+    "sre-opsitem-indexing": true
+  },
+  "iam_roles": {
+    "sre-lambda-role": true,
+    "sre-knowledge-base-lambda-role": true
+  },
+  "overall_status": "MOSTLY_OPERATIONAL"
+}

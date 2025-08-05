@@ -1,0 +1,135 @@
+{
+  "timestamp": "2025-08-05T04:46:39.225725",
+  "overall_percentage": 100,
+  "summary": {
+    "lambda_functions": "10/10",
+    "bedrock_agents": "7/7",
+    "mcp_servers": "5/5",
+    "infrastructure": "3/3",
+    "test_scenarios": 9
+  },
+  "details": {
+    "lambda_functions": [
+      {
+        "name": "sre-supervisor-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-supervisor-lambda-mcp",
+        "status": "Active"
+      },
+      {
+        "name": "sre-cloudtrail-agent-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-vpc-agent-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-trusted-advisor-agent-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-personal-health-agent-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-knowledge-base-agent-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-log-analyzer-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-metrics-analyzer-lambda",
+        "status": "Active"
+      },
+      {
+        "name": "sre-opsitem-indexer-lambda",
+        "status": "Active"
+      }
+    ],
+    "bedrock_agents": [
+      {
+        "name": "SRE-Supervisor",
+        "status": "Prepared"
+      },
+      {
+        "name": "SRE-Log-Analyzer",
+        "status": "Prepared"
+      },
+      {
+        "name": "SRE-Metrics-Analyzer",
+        "status": "Prepared"
+      },
+      {
+        "name": "SRE-CloudTrail-Analyzer",
+        "status": "Prepared"
+      },
+      {
+        "name": "SRE-VPC-Analyzer",
+        "status": "Prepared"
+      },
+      {
+        "name": "SRE-Trusted-Advisor-Analyzer",
+        "status": "Prepared"
+      },
+      {
+        "name": "SRE-Personal-Health-Analyzer",
+        "status": "Prepared"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "Splunk",
+        "status": "Running"
+      },
+      {
+        "name": "Dynatrace",
+        "status": "Running"
+      },
+      {
+        "name": "ServiceNow",
+        "status": "Running"
+      },
+      {
+        "name": "Confluence",
+        "status": "Running"
+      },
+      {
+        "name": "GitLab",
+        "status": "Running"
+      }
+    ],
+    "infrastructure": [
+      {
+        "component": "DynamoDB sre-knowledge-base",
+        "status": "Active"
+      },
+      {
+        "component": "DynamoDB sre-knowledge-base-vectors",
+        "status": "Active"
+      },
+      {
+        "component": "Streamlit",
+        "status": "Running"
+      }
+    ],
+    "test_scenarios": [
+      {
+        "file": "incident_test_cases.json",
+        "count": 3
+      },
+      {
+        "file": "additional_incident_scenarios.json",
+        "count": 3
+      },
+      {
+        "file": "comprehensive_incident_scenarios_with_ssm.json",
+        "count": 3
+      }
+    ]
+  }
+}
