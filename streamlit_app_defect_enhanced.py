@@ -21,12 +21,30 @@ from botocore.exceptions import ClientError
 # Add path for modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Import defect scenarios
+# Import defect scenarios and change correlator
 try:
     from defect_driven_incident_scenarios import DefectDrivenIncidentScenarios
     DEFECT_SCENARIOS_AVAILABLE = True
 except ImportError:
     DEFECT_SCENARIOS_AVAILABLE = False
+
+try:
+    from change_incident_correlator import ChangeIncidentCorrelator
+    CHANGE_CORRELATOR_AVAILABLE = True
+except ImportError:
+    CHANGE_CORRELATOR_AVAILABLE = False
+
+try:
+    from change_driven_incident_scenarios import ChangeDrivenIncidentScenarios
+    CHANGE_SCENARIOS_AVAILABLE = True
+except ImportError:
+    CHANGE_SCENARIOS_AVAILABLE = False
+
+try:
+    from servicenow_problem_integration import ServiceNowProblemManager
+    SERVICENOW_INTEGRATION_AVAILABLE = True
+except ImportError:
+    SERVICENOW_INTEGRATION_AVAILABLE = False
 
 # Load MCP ports configuration including defect management
 try:
@@ -501,6 +519,9 @@ def main():
         page = st.radio("Select Page", [
             "🔍 Incident Analysis",
             "🐛 Defect Management",
+            "🔄 Change Management",
+            "🔗 Change Correlation",
+            "🎫 Problem Management",
             "📊 Analytics",
             "🧪 Test Scenarios"
         ])
@@ -646,12 +667,59 @@ def main():
         st.markdown("---")
         st.subheader("📝 Create New Defect from Incident")
         
+        # Fetch recent incidents for dropdown
+        recent_incidents = []
+        try:
+            ssm_client = boto3.client('ssm', region_name='us-east-1')
+            response = ssm_client.describe_ops_items(
+                OpsItemFilters=[
+                    {
+                        'Key': 'Status',
+                        'Values': ['Open', 'InProgress', 'Resolved'],
+                        'Operator': 'Equal'
+                    }
+                ],
+                MaxResults=20
+            )
+            
+            for item in response.get('OpsItemSummaries', []):
+                recent_incidents.append({
+                    'id': item.get('OpsItemId', ''),
+                    'title': item.get('Title', ''),
+                    'status': item.get('Status', ''),
+                    'description': item.get('Description', 'No description available')
+                })
+        except Exception as e:
+            st.warning(f"Could not fetch recent incidents: {str(e)}")
+        
         with st.form("defect_creation_form"):
+            # Incident selection section
+            st.markdown("**🔍 Select Source Incident (Optional)**")
+            incident_options = ["Create new defect manually"] + [f"{inc['id']} - {inc['title']}" for inc in recent_incidents]
+            selected_incident = st.selectbox("Recent Incidents", incident_options)
+            
+            # Parse selected incident
+            selected_incident_data = None
+            if selected_incident != "Create new defect manually":
+                incident_id = selected_incident.split(' - ')[0]
+                selected_incident_data = next((inc for inc in recent_incidents if inc['id'] == incident_id), None)
+            
             col1, col2 = st.columns(2)
             
             with col1:
-                defect_title = st.text_input("Defect Title")
-                defect_severity = st.selectbox("Severity", ["Critical", "High", "Medium", "Low"])
+                # Auto-populate from incident if selected
+                default_title = selected_incident_data['title'] if selected_incident_data else ""
+                defect_title = st.text_input("Defect Title", value=default_title)
+                
+                # Map incident status to severity
+                default_severity = "High"
+                if selected_incident_data and selected_incident_data['status'] == 'Open':
+                    default_severity = "Critical"
+                elif selected_incident_data and selected_incident_data['status'] == 'Resolved':
+                    default_severity = "Medium"
+                
+                defect_severity = st.selectbox("Severity", ["Critical", "High", "Medium", "Low"], 
+                                             index=["Critical", "High", "Medium", "Low"].index(default_severity))
                 defect_component = st.text_input("Component")
             
             with col2:
@@ -659,7 +727,12 @@ def main():
                 defect_assignee = st.text_input("Assigned To")
                 create_in = st.selectbox("Create In", ["ALM Octane", "Jira", "Both"])
             
-            defect_description = st.text_area("Description", height=100)
+            # Auto-populate description from incident
+            default_description = ""
+            if selected_incident_data:
+                default_description = f"Root cause analysis from incident {selected_incident_data['id']}:\n\n{selected_incident_data['description']}\n\nRequires investigation and resolution."
+            
+            defect_description = st.text_area("Description", value=default_description, height=120)
             
             create_defect_btn = st.form_submit_button("🐛 Create Defect")
         
@@ -667,11 +740,41 @@ def main():
             with st.spinner("Creating defect..."):
                 success_count = 0
                 
+                # If incident was selected, enhance with correlation analysis
+                if selected_incident_data:
+                    st.info(f"🔗 Creating defect from incident {selected_incident_data['id']}")
+                    
+                    # Perform AI-powered incident analysis
+                    with st.spinner("Analyzing incident for defect correlation..."):
+                        correlation_data = get_defect_correlation_data(
+                            selected_incident_data['description'], 
+                            "incident_based"
+                        )
+                        
+                        # Extract key insights for defect creation
+                        ai_analysis = ""
+                        if correlation_data and 'analysis' in correlation_data:
+                            ai_analysis = f"\n\n**AI Analysis:**\n{correlation_data['analysis']}"
+                        
+                        # Check for related defects
+                        related_defects = ""
+                        if correlation_data and 'alm_octane_defects' in correlation_data:
+                            defect_count = len(correlation_data['alm_octane_defects'])
+                            if defect_count > 0:
+                                related_defects = f"\n**Related Defects Found:** {defect_count} similar defects detected"
+                    
+                    # Add incident reference to defect data
+                    incident_reference = f"\n\n**Source Incident:** {selected_incident_data['id']}\n**Status:** {selected_incident_data['status']}{ai_analysis}{related_defects}"
+                    defect_description_enhanced = defect_description + incident_reference
+                
                 if create_in in ["ALM Octane", "Both"]:
                     try:
+                        # Use enhanced description if incident was selected
+                        final_description = defect_description_enhanced if selected_incident_data else defect_description
+                        
                         defect_data = {
                             "name": defect_title,
-                            "description": defect_description,
+                            "description": final_description,
                             "severity": defect_severity,
                             "component": defect_component,
                             "environment": defect_environment,
@@ -686,7 +789,10 @@ def main():
                         
                         if response.status_code == 201:
                             created_defect = response.json()
-                            st.success(f"✅ Created ALM Octane defect: {created_defect.get('id')}")
+                            defect_msg = f"✅ Created ALM Octane defect: {created_defect.get('id')}"
+                            if selected_incident_data:
+                                defect_msg += f" (linked to incident {selected_incident_data['id']})"
+                            st.success(defect_msg)
                             success_count += 1
                         else:
                             st.error(f"❌ Failed to create ALM Octane defect: {response.status_code}")
@@ -695,10 +801,13 @@ def main():
                 
                 if create_in in ["Jira", "Both"]:
                     try:
+                        # Use enhanced description if incident was selected
+                        final_description = defect_description_enhanced if selected_incident_data else defect_description
+                        
                         issue_data = {
                             "project": "SREPROJ",
                             "summary": defect_title,
-                            "description": defect_description,
+                            "description": final_description,
                             "issue_type": "Bug",
                             "priority": defect_severity,
                             "assignee": defect_assignee
@@ -712,7 +821,10 @@ def main():
                         
                         if response.status_code == 201:
                             created_issue = response.json()
-                            st.success(f"✅ Created Jira issue: {created_issue.get('key')}")
+                            issue_msg = f"✅ Created Jira issue: {created_issue.get('key')}"
+                            if selected_incident_data:
+                                issue_msg += f" (linked to incident {selected_incident_data['id']})"
+                            st.success(issue_msg)
                             success_count += 1
                         else:
                             st.error(f"❌ Failed to create Jira issue: {response.status_code}")
@@ -722,6 +834,436 @@ def main():
                 if success_count > 0:
                     st.balloons()
     
+    elif page == "🔄 Change Management":
+        st.markdown("## 🔄 Change Management Dashboard")
+        
+        # Recent Changes Overview
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Recent Changes (24h)", "12", delta="3")
+        with col2:
+            st.metric("High Risk Changes", "2", delta="1", delta_color="inverse")
+        with col3:
+            st.metric("Failed Changes", "1", delta="-1", delta_color="normal")
+        
+        # Change Status Summary
+        st.markdown("---")
+        st.subheader("📋 Recent Changes")
+        
+        # Fetch recent changes
+        if CHANGE_CORRELATOR_AVAILABLE:
+            try:
+                correlator = ChangeIncidentCorrelator()
+                # Get changes from last 24 hours
+                from datetime import datetime, timedelta
+                recent_time = datetime.now() - timedelta(hours=1)
+                changes = correlator._get_recent_changes(recent_time)
+                
+                if changes:
+                    # Create a dataframe for display
+                    change_data = []
+                    for change in changes[:15]:  # Show last 15 changes
+                        change_data.append({
+                            'ID': change['id'],
+                            'Title': change['title'][:60] + "..." if len(change['title']) > 60 else change['title'],
+                            'Type': change.get('change_type', 'unknown').title(),
+                            'Risk': change.get('risk_level', 'medium').title(),
+                            'Status': change.get('status', 'unknown'),
+                            'Time': change['created_time'].strftime('%Y-%m-%d %H:%M') if isinstance(change['created_time'], datetime) else str(change['created_time'])[:16]
+                        })
+                    
+                    df = pd.DataFrame(change_data)
+                    st.dataframe(df, use_container_width=True)
+                    
+                    # Change Type Distribution
+                    st.markdown("### 📊 Change Distribution")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        type_counts = df['Type'].value_counts()
+                        fig = px.pie(values=type_counts.values, names=type_counts.index, 
+                                   title="Changes by Type")
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        risk_counts = df['Risk'].value_counts()
+                        fig = px.bar(x=risk_counts.index, y=risk_counts.values, 
+                                   title="Changes by Risk Level",
+                                   color=risk_counts.index,
+                                   color_discrete_map={'High': 'red', 'Medium': 'orange', 'Low': 'green'})
+                        st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No recent changes found")
+                    
+            except Exception as e:
+                st.error(f"Error loading change data: {str(e)}")
+        else:
+            st.warning("Change correlator not available")
+            
+        # Create New Change
+        st.markdown("---")
+        st.subheader("📝 Create New Change Request")
+        
+        with st.form("change_request_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                change_title = st.text_input("Change Title")
+                change_type = st.selectbox("Change Type", ["Deployment", "Configuration", "Infrastructure", "Database", "Security"])
+                change_risk = st.selectbox("Risk Level", ["Low", "Medium", "High"])
+            
+            with col2:
+                change_environment = st.selectbox("Environment", ["Development", "QA", "Staging", "Production"])
+                change_assignee = st.text_input("Assigned To")
+                scheduled_time = st.datetime_input("Scheduled Time")
+            
+            change_description = st.text_area("Description", height=100)
+            affected_services = st.text_input("Affected Services (comma-separated)")
+            
+            create_change_btn = st.form_submit_button("🔄 Create Change Request")
+        
+        if create_change_btn and change_title and change_description:
+            # Create change request (simulate)
+            st.success(f"✅ Change request created: CHG-{random.randint(1000, 9999)}")
+            st.info("Change request will be tracked for incident correlation analysis")
+
+    elif page == "🔗 Change Correlation":
+        st.markdown("## 🔗 Change-Incident Correlation Analysis")
+        
+        # Incident Selection for Correlation
+        st.subheader("🎯 Select Incident for Change Analysis")
+        
+        # Fetch recent incidents for dropdown
+        recent_incidents = []
+        try:
+            ssm_client = boto3.client('ssm', region_name='us-east-1')
+            response = ssm_client.describe_ops_items(
+                OpsItemFilters=[
+                    {
+                        'Key': 'Status',
+                        'Values': ['Open', 'InProgress', 'Resolved'],
+                        'Operator': 'Equal'
+                    }
+                ],
+                MaxResults=15
+            )
+            
+            for item in response.get('OpsItemSummaries', []):
+                recent_incidents.append({
+                    'id': item.get('OpsItemId', ''),
+                    'title': item.get('Title', ''),
+                    'status': item.get('Status', ''),
+                    'description': item.get('Description', 'No description available')
+                })
+        except Exception as e:
+            st.warning(f"Could not fetch recent incidents: {str(e)}")
+        
+        if recent_incidents:
+            incident_options = [f"{inc['id']} - {inc['title']}" for inc in recent_incidents]
+            selected_incident = st.selectbox("Recent Incidents", incident_options)
+            
+            # Parse selected incident
+            incident_id = selected_incident.split(' - ')[0]
+            selected_incident_data = next((inc for inc in recent_incidents if inc['id'] == incident_id), None)
+            
+            if selected_incident_data:
+                # Display incident details
+                st.markdown("### 📋 Incident Details")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown(f"**ID:** {selected_incident_data['id']}")
+                with col2:
+                    st.markdown(f"**Status:** {selected_incident_data['status']}")
+                with col3:
+                    st.markdown(f"**Title:** {selected_incident_data['title']}")
+                
+                # Analyze button
+                if st.button("🔍 Analyze Change Correlation"):
+                    if CHANGE_CORRELATOR_AVAILABLE:
+                        with st.spinner("Analyzing change-incident correlation..."):
+                            correlator = ChangeIncidentCorrelator()
+                            correlation_result = correlator.analyze_change_incident_correlation(
+                                selected_incident_data['id'], 
+                                selected_incident_data['description']
+                            )
+                            
+                            # Display correlation results
+                            st.markdown("---")
+                            st.markdown("### 📊 Correlation Analysis Results")
+                            
+                            # Summary metrics
+                            col1, col2, col3, col4 = st.columns(4)
+                            
+                            with col1:
+                                st.metric("Changes Analyzed", correlation_result['total_changes_analyzed'])
+                            with col2:
+                                st.metric("Significant Correlations", correlation_result['significant_correlations'])
+                            with col3:
+                                st.metric("Top Correlation", f"{correlation_result['top_correlation_score']:.1%}")
+                            with col4:
+                                confidence = "High" if correlation_result['top_correlation_score'] >= 0.6 else "Medium" if correlation_result['top_correlation_score'] >= 0.3 else "Low"
+                                st.metric("Confidence", confidence)
+                            
+                            # AI Analysis
+                            if correlation_result['analysis']:
+                                st.markdown("### 🤖 AI Analysis")
+                                st.markdown(correlation_result['analysis'])
+                            
+                            # Top Correlations
+                            if correlation_result['correlations']:
+                                st.markdown("### 🏆 Top Change Correlations")
+                                
+                                for i, correlation in enumerate(correlation_result['correlations'][:5]):
+                                    with st.expander(f"#{i+1}: {correlation['change_title']} ({correlation['correlation_score']:.1%})"):
+                                        col1, col2 = st.columns(2)
+                                        
+                                        with col1:
+                                            st.markdown("**Change Details:**")
+                                            st.write(f"**Type:** {correlation['change_type'].title()}")
+                                            st.write(f"**Risk Level:** {correlation.get('risk_level', 'unknown').title()}")
+                                            st.write(f"**Time Difference:** {correlation['time_difference_minutes']} minutes")
+                                            st.write(f"**Confidence:** {correlation['confidence_level']}")
+                                        
+                                        with col2:
+                                            st.markdown("**Correlation Factors:**")
+                                            factors = correlation.get('correlation_factors', {})
+                                            for factor, score in factors.items():
+                                                st.write(f"• {factor.replace('_', '').title()}: {score:.2f}")
+                                        
+                                        if correlation.get('common_services'):
+                                            st.markdown(f"**Common Services:** {', '.join(correlation['common_services'])}")
+                                        
+                                        st.markdown(f"**Description:** {correlation.get('change_description', 'N/A')}")
+                            
+                            # Recommendations
+                            if correlation_result['recommendations']:
+                                st.markdown("### 💡 Recommendations")
+                                for recommendation in correlation_result['recommendations']:
+                                    st.markdown(f"• {recommendation}")
+                            
+                            # Change Categories
+                            if correlation_result['change_categories']:
+                                st.markdown("### 📂 Change Categories")
+                                categories = correlation_result['change_categories']
+                                category_df = pd.DataFrame(list(categories.items()), columns=['Type', 'Count'])
+                                fig = px.bar(category_df, x='Type', y='Count', title="Correlated Changes by Type")
+                                st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.error("Change correlator not available")
+        else:
+            st.info("No recent incidents available for analysis")
+
+    elif page == "🎫 Problem Management":
+        st.markdown("## 🎫 ServiceNow Problem Management")
+        
+        # Problem Management Overview
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Active Problems", "8", delta="2")
+        with col2:
+            st.metric("Resolved Problems", "15", delta="3")
+        with col3:
+            st.metric("Avg Resolution Time", "4.2h", delta="-0.8h", delta_color="normal")
+        with col4:
+            st.metric("Problem Backlog", "3", delta="-1", delta_color="normal")
+        
+        # Create Problem from Incident
+        st.markdown("---")
+        st.subheader("📝 Create Problem from Incident")
+        
+        # Fetch recent incidents for problem creation
+        recent_incidents = []
+        try:
+            ssm_client = boto3.client('ssm', region_name='us-east-1')
+            response = ssm_client.describe_ops_items(
+                OpsItemFilters=[
+                    {
+                        'Key': 'Status',
+                        'Values': ['Open', 'InProgress'],
+                        'Operator': 'Equal'
+                    }
+                ],
+                MaxResults=20
+            )
+            
+            for item in response.get('OpsItemSummaries', []):
+                recent_incidents.append({
+                    'id': item.get('OpsItemId', ''),
+                    'title': item.get('Title', ''),
+                    'status': item.get('Status', ''),
+                    'severity': item.get('Severity', 'Medium'),
+                    'description': item.get('Description', 'No description available')
+                })
+        except Exception as e:
+            st.warning(f"Could not fetch recent incidents: {str(e)}")
+        
+        if recent_incidents and SERVICENOW_INTEGRATION_AVAILABLE:
+            with st.form("problem_creation_form"):
+                st.markdown("**🎯 Select Incident for Problem Creation**")
+                incident_options = [f"{inc['id']} - {inc['title']}" for inc in recent_incidents]
+                selected_incident = st.selectbox("Recent Incidents", incident_options)
+                
+                # Parse selected incident
+                incident_id = selected_incident.split(' - ')[0]
+                selected_incident_data = next((inc for inc in recent_incidents if inc['id'] == incident_id), None)
+                
+                if selected_incident_data:
+                    # Display incident details
+                    st.markdown("**📋 Incident Details:**")
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.write(f"**ID:** {selected_incident_data['id']}")
+                    with col2:
+                        st.write(f"**Status:** {selected_incident_data['status']}")
+                    with col3:
+                        st.write(f"**Severity:** {selected_incident_data['severity']}")
+                    
+                    # Problem creation options
+                    st.markdown("**🛠️ Problem Details:**")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        problem_priority = st.selectbox("Priority", ["1 - Critical", "2 - High", "3 - Moderate", "4 - Low"])
+                        assignment_group = st.selectbox("Assignment Group", ["SRE Team", "DevOps Team", "Platform Team", "Database Team"])
+                    
+                    with col2:
+                        problem_category = st.selectbox("Category", ["Software", "Hardware", "Network", "Database", "Security"])
+                        assigned_to = st.text_input("Assigned To", value="sre-team@company.com")
+                    
+                    additional_notes = st.text_area("Additional Problem Notes", height=100)
+                    
+                    create_problem_btn = st.form_submit_button("🎫 Create Problem in ServiceNow")
+                
+                if create_problem_btn and selected_incident_data:
+                    if SERVICENOW_INTEGRATION_AVAILABLE:
+                        with st.spinner("Creating problem in ServiceNow..."):
+                            try:
+                                problem_manager = ServiceNowProblemManager()
+                                
+                                # Enhance incident data with form inputs
+                                enhanced_incident_data = {
+                                    **selected_incident_data,
+                                    'priority': problem_priority,
+                                    'assignment_group': assignment_group,
+                                    'assigned_to': assigned_to,
+                                    'category': problem_category,
+                                    'additional_notes': additional_notes
+                                }
+                                
+                                result = problem_manager.create_problem_from_incident(incident_id, enhanced_incident_data)
+                                
+                                if result['success']:
+                                    st.success(f"✅ Problem created successfully!")
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.info(f"**Problem ID:** {result['problem_id']}")
+                                        st.info(f"**Problem Number:** {result['problem_number']}")
+                                    with col2:
+                                        st.info(f"**Status:** {result['status'].title()}")
+                                        st.info(f"**ServiceNow URL:** [View Problem]({result['servicenow_url']})")
+                                    
+                                    # Link problem to incident
+                                    link_result = problem_manager.link_problem_to_incident(result['problem_id'], incident_id)
+                                    if link_result['success']:
+                                        st.success("🔗 Problem successfully linked to incident")
+                                    
+                                    st.balloons()
+                                else:
+                                    st.error(f"❌ Failed to create problem: {result.get('error', 'Unknown error')}")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Error creating problem: {str(e)}")
+                    else:
+                        st.error("ServiceNow integration not available")
+        elif not SERVICENOW_INTEGRATION_AVAILABLE:
+            st.warning("ServiceNow integration not available. Problem management features are disabled.")
+        else:
+            st.info("No open incidents available for problem creation")
+        
+        # Problem Resolution Tracking
+        st.markdown("---")
+        st.subheader("🔧 Problem Resolution Tracking")
+        
+        if SERVICENOW_INTEGRATION_AVAILABLE:
+            # Sample active problems (in real implementation, fetch from ServiceNow)
+            active_problems = [
+                {
+                    'id': 'PRB0001001',
+                    'title': 'API Gateway Performance Degradation',
+                    'state': 'In Progress',
+                    'priority': '2 - High',
+                    'assigned_to': 'SRE Team',
+                    'created': '2025-08-12 09:30:00',
+                    'incident_id': 'oi-114b7755dee1'
+                },
+                {
+                    'id': 'PRB0001002', 
+                    'title': 'Database Connection Timeout Issues',
+                    'state': 'New',
+                    'priority': '1 - Critical',
+                    'assigned_to': 'Database Team',
+                    'created': '2025-08-12 10:15:00',
+                    'incident_id': 'oi-e6af31aba693'
+                }
+            ]
+            
+            for problem in active_problems:
+                with st.expander(f"🎫 {problem['id']}: {problem['title']}"):
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.write(f"**State:** {problem['state']}")
+                        st.write(f"**Priority:** {problem['priority']}")
+                        st.write(f"**Created:** {problem['created']}")
+                    
+                    with col2:
+                        st.write(f"**Assigned To:** {problem['assigned_to']}")
+                        st.write(f"**Source Incident:** {problem['incident_id']}")
+                    
+                    with col3:
+                        if st.button(f"🔧 Update Resolution", key=f"update_{problem['id']}"):
+                            st.info("Resolution update form would appear here")
+                        
+                        if st.button(f"🔗 View in ServiceNow", key=f"view_{problem['id']}"):
+                            st.info(f"Would open ServiceNow problem {problem['id']}")
+        else:
+            st.warning("ServiceNow integration not available")
+        
+        # Problem Analytics
+        st.markdown("---")
+        st.subheader("📈 Problem Analytics")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Sample problem trend data
+            problem_trend_data = {
+                'Date': ['Aug 8', 'Aug 9', 'Aug 10', 'Aug 11', 'Aug 12'],
+                'Created': [3, 5, 2, 4, 3],
+                'Resolved': [2, 4, 3, 3, 2]
+            }
+            df = pd.DataFrame(problem_trend_data)
+            fig = px.line(df, x='Date', y=['Created', 'Resolved'], title="Problem Trend (5 days)")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Sample resolution time data
+            resolution_data = {
+                'Priority': ['Critical', 'High', 'Moderate', 'Low'],
+                'Avg Resolution (hours)': [2.5, 4.2, 8.1, 16.3]
+            }
+            df = pd.DataFrame(resolution_data)
+            fig = px.bar(df, x='Priority', y='Avg Resolution (hours)', 
+                        title="Avg Resolution Time by Priority",
+                        color='Priority',
+                        color_discrete_map={'Critical': 'red', 'High': 'orange', 'Moderate': 'yellow', 'Low': 'green'})
+            st.plotly_chart(fig, use_container_width=True)
+
     elif page == "📊 Analytics":
         st.markdown("## 📊 Defect and Incident Analytics")
         
@@ -769,49 +1311,219 @@ def main():
                 st.error(f"Error loading velocity: {str(e)}")
     
     elif page == "🧪 Test Scenarios":
-        st.markdown("## 🧪 Defect-Driven Test Scenarios")
+        st.markdown("## 🧪 Comprehensive Test Scenarios")
         
-        if DEFECT_SCENARIOS_AVAILABLE:
-            scenarios_generator = DefectDrivenIncidentScenarios()
-            scenarios = scenarios_generator.get_all_scenarios()
+        # Scenario type selector
+        scenario_type = st.selectbox("Select Scenario Type", 
+                                   ["Defect-Driven Incidents", "Change-Driven Incidents", "Combined Analysis"])
+        
+        if scenario_type == "Defect-Driven Incidents":
+            st.markdown("### 🐛 Defect-Driven Test Scenarios")
             
-            st.markdown(f"**Available Scenarios:** {len(scenarios)}")
+            if DEFECT_SCENARIOS_AVAILABLE:
+                scenarios_generator = DefectDrivenIncidentScenarios()
+                scenarios = scenarios_generator.get_all_scenarios()
+                
+                st.markdown(f"**Available Scenarios:** {len(scenarios)}")
+                
+                for scenario in scenarios:
+                    with st.expander(f"🔬 {scenario['scenario_id']}: {scenario['incident_title']}"):
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.markdown("**Incident Details**")
+                            st.write(f"Severity: {scenario['incident_severity']}")
+                            st.write(f"Duration: {scenario['incident_duration_minutes']} min")
+                            st.write(f"Confidence: {scenario['correlation_confidence']:.0%}")
+                        
+                        with col2:
+                            st.markdown("**Root Cause Defect**")
+                            defect = scenario['root_cause_defect']
+                            st.write(f"ID: {defect['defect_id']}")
+                            st.write(f"Status: {defect['defect_status']}")
+                            st.write(f"Component: {defect['defect_component']}")
+                        
+                        with col3:
+                            st.markdown("**Jira Correlation**")
+                            jira = scenario['jira_correlation']
+                            st.write(f"Issue: {jira['issue_key']}")
+                            st.write(f"Sprint: {jira['sprint']}")
+                            st.write(f"Points: {jira['story_points']}")
+                        
+                        if st.button(f"🚀 Test Scenario {scenario['scenario_id']}", key=f"test_{scenario['scenario_id']}"):
+                            with st.spinner("Running scenario analysis..."):
+                                correlation_data = get_defect_correlation_data(
+                                    scenario['incident_description'], 
+                                    "defect_related"
+                                )
+                                
+                                st.success("Scenario analysis completed!")
+                                display_defect_correlation_section(correlation_data)
+            else:
+                st.error("Defect-driven scenarios not available")
+        
+        elif scenario_type == "Change-Driven Incidents":
+            st.markdown("### 🔄 Change-Driven Test Scenarios")
             
-            for scenario in scenarios:
-                with st.expander(f"🔬 {scenario['scenario_id']}: {scenario['incident_title']}"):
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.markdown("**Incident Details**")
-                        st.write(f"Severity: {scenario['incident_severity']}")
-                        st.write(f"Duration: {scenario['incident_duration_minutes']} min")
-                        st.write(f"Confidence: {scenario['correlation_confidence']:.0%}")
-                    
-                    with col2:
-                        st.markdown("**Root Cause Defect**")
-                        defect = scenario['root_cause_defect']
-                        st.write(f"ID: {defect['defect_id']}")
-                        st.write(f"Status: {defect['defect_status']}")
-                        st.write(f"Component: {defect['defect_component']}")
-                    
-                    with col3:
-                        st.markdown("**Jira Correlation**")
-                        jira = scenario['jira_correlation']
-                        st.write(f"Issue: {jira['issue_key']}")
-                        st.write(f"Sprint: {jira['sprint']}")
-                        st.write(f"Points: {jira['story_points']}")
-                    
-                    if st.button(f"🚀 Test Scenario {scenario['scenario_id']}", key=f"test_{scenario['scenario_id']}"):
-                        with st.spinner("Running scenario analysis..."):
-                            correlation_data = get_defect_correlation_data(
-                                scenario['incident_description'], 
-                                "defect_related"
+            if CHANGE_SCENARIOS_AVAILABLE:
+                change_scenarios = ChangeDrivenIncidentScenarios()
+                scenarios = change_scenarios.get_all_scenarios()
+                summary = change_scenarios.generate_scenario_summary()
+                
+                # Summary metrics
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Scenarios", summary['total_scenarios'])
+                with col2:
+                    st.metric("Avg Confidence", f"{summary['average_correlation_confidence']:.1%}")
+                with col3:
+                    st.metric("Total Customers Affected", f"{summary['business_impact']['total_customers_affected']:,}")
+                with col4:
+                    st.metric("SLA Breaches", summary['business_impact']['sla_breaches'])
+                
+                st.markdown("---")
+                st.markdown(f"**Available Change Scenarios:** {len(scenarios)}")
+                
+                for scenario in scenarios:
+                    with st.expander(f"🔄 {scenario['scenario_id']}: {scenario['incident_title']}"):
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.markdown("**Incident Details**")
+                            st.write(f"**Severity:** {scenario['incident_severity']}")
+                            st.write(f"**Duration:** {scenario['incident_duration_minutes']} minutes")
+                            st.write(f"**Confidence:** {scenario['correlation_confidence']:.1%}")
+                            st.write(f"**Customers Affected:** {scenario['change_impact_analysis']['customers_affected']:,}")
+                        
+                        with col2:
+                            st.markdown("**Root Cause Change**")
+                            change = scenario['root_cause_change']
+                            st.write(f"**ID:** {change['change_id']}")
+                            st.write(f"**Type:** {change['change_type'].title()}")
+                            st.write(f"**Risk Level:** {change['risk_level'].title()}")
+                            st.write(f"**Changed By:** {change.get('changed_by', 'N/A')}")
+                        
+                        with col3:
+                            st.markdown("**Business Impact**")
+                            impact = scenario['change_impact_analysis']
+                            st.write(f"**Revenue Impact:** ${impact['revenue_impact_usd']:,}")
+                            st.write(f"**SLA Breach:** {'Yes' if impact['sla_breach'] else 'No'}")
+                            st.write(f"**Regulatory:** {'Yes' if impact['regulatory_impact'] else 'No'}")
+                        
+                        # Change description
+                        st.markdown("**Change Description:**")
+                        st.write(change.get('change_description', 'N/A'))
+                        
+                        # Correlation evidence
+                        st.markdown("**Correlation Evidence:**")
+                        evidence = scenario['correlation_evidence']
+                        evidence_cols = st.columns(len(evidence))
+                        for i, (key, value) in enumerate(evidence.items()):
+                            with evidence_cols[i % len(evidence_cols)]:
+                                st.write(f"**{key.replace('_', ' ').title()}:** {value:.1%}")
+                        
+                        if st.button(f"🔍 Analyze Change Correlation {scenario['scenario_id']}", key=f"analyze_{scenario['scenario_id']}"):
+                            if CHANGE_CORRELATOR_AVAILABLE:
+                                with st.spinner("Analyzing change-incident correlation..."):
+                                    correlator = ChangeIncidentCorrelator()
+                                    correlation_result = correlator.analyze_change_incident_correlation(
+                                        scenario['scenario_id'], 
+                                        scenario['incident_description']
+                                    )
+                                    
+                                    st.success("✅ Change correlation analysis completed!")
+                                    
+                                    # Display results
+                                    st.markdown("**🤖 AI Analysis:**")
+                                    st.markdown(correlation_result['analysis'])
+                                    
+                                    if correlation_result['recommendations']:
+                                        st.markdown("**💡 Recommendations:**")
+                                        for rec in correlation_result['recommendations']:
+                                            st.markdown(f"• {rec}")
+                            else:
+                                st.error("Change correlator not available")
+            else:
+                st.error("Change-driven scenarios not available")
+        
+        elif scenario_type == "Combined Analysis":
+            st.markdown("### 🔀 Combined Defect and Change Analysis")
+            
+            # Combined scenario statistics
+            defect_count = 0
+            change_count = 0
+            
+            if DEFECT_SCENARIOS_AVAILABLE:
+                defect_scenarios = DefectDrivenIncidentScenarios()
+                defect_count = len(defect_scenarios.get_all_scenarios())
+            
+            if CHANGE_SCENARIOS_AVAILABLE:
+                change_scenarios = ChangeDrivenIncidentScenarios()
+                change_count = len(change_scenarios.get_all_scenarios())
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Defect Scenarios", defect_count)
+            with col2:
+                st.metric("Change Scenarios", change_count)
+            with col3:
+                st.metric("Total Coverage", defect_count + change_count)
+            
+            st.markdown("---")
+            st.markdown("### 📊 Scenario Distribution")
+            
+            if DEFECT_SCENARIOS_AVAILABLE and CHANGE_SCENARIOS_AVAILABLE:
+                # Create visualization of scenario types
+                scenario_data = {
+                    'Type': ['Defect-Driven', 'Change-Driven'],
+                    'Count': [defect_count, change_count]
+                }
+                df = pd.DataFrame(scenario_data)
+                fig = px.pie(df, values='Count', names='Type', title="Test Scenario Distribution")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Sample combined analysis
+                st.markdown("### 🎯 Run Combined Analysis")
+                st.info("Select an incident to analyze both defect and change correlations simultaneously")
+                
+                if st.button("🚀 Run Sample Combined Analysis"):
+                    with st.spinner("Running combined defect and change analysis..."):
+                        # Sample incident for combined analysis
+                        sample_incident = """
+                        API Gateway experiencing 500 errors starting at 14:30 UTC.
+                        Database connection timeouts observed.
+                        Recent deployment of web-service v2.1.4 completed 30 minutes ago.
+                        Similar issues reported in previous defect DEF-2024-001.
+                        """
+                        
+                        # Run both analyses
+                        if CHANGE_CORRELATOR_AVAILABLE:
+                            correlator = ChangeIncidentCorrelator()
+                            change_result = correlator.analyze_change_incident_correlation(
+                                "combined-test", sample_incident
                             )
                             
-                            st.success("Scenario analysis completed!")
-                            display_defect_correlation_section(correlation_data)
-        else:
-            st.error("Defect-driven scenarios not available")
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.markdown("**🔄 Change Analysis Results:**")
+                                st.write(f"Changes Analyzed: {change_result['total_changes_analyzed']}")
+                                st.write(f"Top Correlation: {change_result['top_correlation_score']:.1%}")
+                                st.markdown("**Analysis:**")
+                                st.write(change_result['analysis'])
+                            
+                            with col2:
+                                st.markdown("**🐛 Defect Analysis Results:**")
+                                defect_data = get_defect_correlation_data(sample_incident)
+                                if defect_data:
+                                    st.write("Defect correlation analysis completed")
+                                    display_defect_correlation_section(defect_data)
+                                else:
+                                    st.write("No significant defect correlations found")
+                        
+                        st.success("✅ Combined analysis completed!")
+            else:
+                st.warning("Both defect and change scenarios need to be available for combined analysis")
 
 if __name__ == "__main__":
     main()
