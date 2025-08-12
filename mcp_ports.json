@@ -5,5 +5,9 @@
   "confluence": 9083,
   "gitlab": 9084,
   "alm_octane": 9085,
-  "jira": 9086
+  "jira": 9086,
+  "fed_lpp": 9087,
+  "fedsearch": 9088,
+  "kb_external_1": 9089,
+  "kb_external_2": 9090
 }

@@ -46,6 +46,24 @@ try:
 except ImportError:
     SERVICENOW_INTEGRATION_AVAILABLE = False
 
+try:
+    from streamlit_synthetic_transaction_tab import render_synthetic_transaction_tab
+    SYNTHETIC_TRANSACTION_AVAILABLE = True
+except ImportError:
+    SYNTHETIC_TRANSACTION_AVAILABLE = False
+
+try:
+    from streamlit_knowledge_base_tab import render_knowledge_base_tab
+    KNOWLEDGE_BASE_TAB_AVAILABLE = True
+except ImportError:
+    KNOWLEDGE_BASE_TAB_AVAILABLE = False
+
+try:
+    from ai_problem_management import AIProblemManager
+    AI_PROBLEM_MANAGEMENT_AVAILABLE = True
+except ImportError:
+    AI_PROBLEM_MANAGEMENT_AVAILABLE = False
+
 # Load MCP ports configuration including defect management
 try:
     with open('mcp_ports.json', 'r') as f:
@@ -522,6 +540,8 @@ def main():
             "🔄 Change Management",
             "🔗 Change Correlation",
             "🎫 Problem Management",
+            "📚 Knowledge Base",
+            "🔬 Synthetic Transactions",
             "📊 Analytics",
             "🧪 Test Scenarios"
         ])
@@ -1058,6 +1078,10 @@ def main():
     elif page == "🎫 Problem Management":
         st.markdown("## 🎫 ServiceNow Problem Management")
         
+        # Add AI Problem Management indicator
+        if AI_PROBLEM_MANAGEMENT_AVAILABLE:
+            st.success("🤖 AI-Powered Problem Management is ACTIVE")
+        
         # Problem Management Overview
         col1, col2, col3, col4 = st.columns(4)
         
@@ -1068,7 +1092,7 @@ def main():
         with col3:
             st.metric("Avg Resolution Time", "4.2h", delta="-0.8h", delta_color="normal")
         with col4:
-            st.metric("Problem Backlog", "3", delta="-1", delta_color="normal")
+            st.metric("AI Auto-Created", "5", delta="2")
         
         # Create Problem from Incident
         st.markdown("---")
@@ -1100,7 +1124,80 @@ def main():
         except Exception as e:
             st.warning(f"Could not fetch recent incidents: {str(e)}")
         
+        # AI Analysis Section
+        if recent_incidents and AI_PROBLEM_MANAGEMENT_AVAILABLE:
+            st.markdown("---")
+            st.subheader("🤖 AI-Powered Problem Analysis")
+            
+            # Select incident for AI analysis
+            ai_incident_options = [f"{inc['id']} - {inc['title']}" for inc in recent_incidents]
+            selected_ai_incident = st.selectbox("Select Incident for AI Analysis", ai_incident_options, key="ai_incident_select")
+            
+            if st.button("🔍 Analyze with AI", key="ai_analyze_btn"):
+                # Parse selected incident
+                ai_incident_id = selected_ai_incident.split(' - ')[0]
+                ai_incident_data = next((inc for inc in recent_incidents if inc['id'] == ai_incident_id), None)
+                
+                if ai_incident_data:
+                    with st.spinner("AI analyzing incident for problem creation..."):
+                        try:
+                            ai_manager = AIProblemManager()
+                            analysis = ai_manager.analyze_incident_for_problem(ai_incident_data)
+                            
+                            # Display analysis results
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.metric("Should Create Problem?", 
+                                         "YES" if analysis['should_create_problem'] else "NO",
+                                         delta=f"{analysis['confidence_score']:.0%} confidence")
+                                
+                                if analysis['reasoning']:
+                                    st.markdown("**Reasoning:**")
+                                    for reason in analysis['reasoning']:
+                                        st.write(f"• {reason}")
+                            
+                            with col2:
+                                st.metric("Problem Type", analysis.get('problem_type', 'Unknown').replace('_', ' ').title())
+                                st.metric("Related Incidents", len(analysis['related_incidents']))
+                                
+                                if analysis['impact_analysis']:
+                                    impact = analysis['impact_analysis']
+                                    st.metric("Business Impact", impact['category'].upper(), 
+                                             delta=f"{impact['score']:.0%}")
+                            
+                            # AI Recommendation
+                            if analysis['ai_recommendation']:
+                                st.markdown("### 🎯 AI Recommendation")
+                                ai_rec = analysis['ai_recommendation']
+                                
+                                st.info(ai_rec.get('reasoning', 'No specific recommendation'))
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.write(f"**Recommended Priority:** {ai_rec.get('recommended_priority', 'Medium')}")
+                                    st.write(f"**Problem Category:** {ai_rec.get('problem_category', 'Technical')}")
+                                
+                                with col2:
+                                    if analysis['should_create_problem']:
+                                        if st.button("🚀 Auto-Create Problem", type="primary", key="auto_create_btn"):
+                                            with st.spinner("Creating problem automatically..."):
+                                                result = ai_manager.create_problem_automatically(ai_incident_data, analysis)
+                                                
+                                                if result['success']:
+                                                    st.success(f"✅ Problem {result['problem_number']} created automatically!")
+                                                    st.balloons()
+                                                else:
+                                                    st.error(f"Failed to create problem: {result.get('error', 'Unknown error')}")
+                            
+                        except Exception as e:
+                            st.error(f"AI analysis error: {str(e)}")
+        
+        # Manual Problem Creation Form
         if recent_incidents and SERVICENOW_INTEGRATION_AVAILABLE:
+            st.markdown("---")
+            st.subheader("📝 Manual Problem Creation")
+            
             with st.form("problem_creation_form"):
                 st.markdown("**🎯 Select Incident for Problem Creation**")
                 incident_options = [f"{inc['id']} - {inc['title']}" for inc in recent_incidents]
@@ -1264,6 +1361,20 @@ def main():
                         color_discrete_map={'Critical': 'red', 'High': 'orange', 'Moderate': 'yellow', 'Low': 'green'})
             st.plotly_chart(fig, use_container_width=True)
 
+    elif page == "📚 Knowledge Base":
+        if KNOWLEDGE_BASE_TAB_AVAILABLE:
+            render_knowledge_base_tab()
+        else:
+            st.error("Knowledge Base functionality not available. Please ensure the module is properly installed.")
+            st.info("To enable knowledge base search, make sure all MCP servers are running")
+    
+    elif page == "🔬 Synthetic Transactions":
+        if SYNTHETIC_TRANSACTION_AVAILABLE:
+            render_synthetic_transaction_tab()
+        else:
+            st.error("Synthetic Transaction functionality not available. Please ensure the module is properly installed.")
+            st.info("To enable synthetic transactions, make sure Fed LPP MCP server is running on port 9087")
+    
     elif page == "📊 Analytics":
         st.markdown("## 📊 Defect and Incident Analytics")
         
