@@ -75,9 +75,92 @@
         "token": "ssm:/sre-copilot/mcp/custom_monitoring/token"
       },
       "enabled": true
+    },
+    "alm_octane": {
+      "name": "alm_octane",
+      "type": "rest_api",
+      "endpoint": "http://localhost:9085",
+      "auth": {
+        "type": "bearer",
+        "token": "test_token_octane"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3
+    },
+    "jira": {
+      "name": "jira",
+      "type": "rest_api",
+      "endpoint": "http://localhost:9086",
+      "auth": {
+        "type": "bearer",
+        "token": "test_token_jira"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3
+    },
+    "fed_lpp": {
+      "name": "fed_lpp",
+      "type": "rest_api",
+      "endpoint": "http://localhost:9087",
+      "auth": {
+        "type": "bearer",
+        "token": "test_token_fed_lpp"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3,
+      "description": "Fed Launch Pad Pro - Federal Knowledge Base and Synthetic Transactions"
+    },
+    "fedsearch": {
+      "name": "fedsearch",
+      "type": "rest_api",
+      "endpoint": "http://localhost:9088",
+      "auth": {
+        "type": "bearer",
+        "token": "test_token_fedsearch"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3,
+      "description": "FedSearch - Intelligent Federal Search API"
     }
   },
-  "external_data_sources": {},
+  "external_data_sources": {
+    "kb_external_1": {
+      "name": "Stack Overflow Enterprise",
+      "type": "knowledge_base",
+      "endpoint": "http://localhost:9089",
+      "auth": {
+        "type": "api_key",
+        "key": "test_key_stackoverflow"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3,
+      "description": "Stack Overflow Enterprise for technical Q&A and solutions"
+    },
+    "kb_external_2": {
+      "name": "GitHub Knowledge Base",
+      "type": "knowledge_base",
+      "endpoint": "http://localhost:9090",
+      "auth": {
+        "type": "oauth",
+        "token": "test_token_github_kb"
+      },
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3,
+      "description": "GitHub Issues, Discussions, and Wiki content for knowledge base"
+    }
+  },
   "global_settings": {
     "default_timeout": 30,
     "max_retry_count": 5,
