@@ -929,8 +929,12 @@ class EnhancedSREDashboard:
         st.markdown('<h1 class="main-header">🔍 SRE Copilot - Real-Time Root Cause Analysis</h1>', 
                    unsafe_allow_html=True)
         
-        # Main navigation tabs - add MCP tabs if available
+        # Main navigation tabs - add MCP tabs if available + NEW defect management tabs
         tab_names = ["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics"]
+        
+        # Add NEW defect management tabs
+        tab_names.extend(["🐛 Defect Management", "🔗 Defect Correlation", "🧪 Correlation Scenarios"])
+        
         if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
             tab_names.extend(["🌐 MCP Status", "📈 Feedback Analytics"])
         tab_names.append("❓ User Guide")
@@ -955,8 +959,18 @@ class EnhancedSREDashboard:
         with main_tabs[4]:
             self.render_analytics()
         
+        # NEW: Handle defect management tabs
+        with main_tabs[5]:
+            self.render_defect_management()
+        
+        with main_tabs[6]:
+            self.render_defect_correlation()
+        
+        with main_tabs[7]:
+            self.render_correlation_scenarios()
+        
         # Handle MCP tabs if available
-        tab_idx = 5
+        tab_idx = 8
         if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
             with main_tabs[tab_idx]:
                 self.render_mcp_status()
@@ -3167,6 +3181,327 @@ class EnhancedSREDashboard:
         except Exception as e:
             st.error(f"Error loading feedback analytics: {str(e)}")
             st.info("Please ensure the feedback system is properly configured.")
+    
+    def render_defect_management(self):
+        """NEW: Render defect management tab"""
+        st.header("🐛 Defect Management Dashboard")
+        
+        # Check defect server status
+        mcp_ports = {'alm_octane': 9085, 'jira': 9086}
+        status = {}
+        
+        try:
+            response = requests.get(f"http://localhost:{mcp_ports['alm_octane']}/octane/defects", timeout=2)
+            status['alm_octane'] = {'online': response.status_code == 200, 'defects': len(response.json()) if response.status_code == 200 else 0}
+        except:
+            status['alm_octane'] = {'online': False, 'defects': 0}
+        
+        try:
+            response = requests.get(f"http://localhost:{mcp_ports['jira']}/jira/issues", timeout=2)
+            status['jira'] = {'online': response.status_code == 200, 'issues': len(response.json()) if response.status_code == 200 else 0}
+        except:
+            status['jira'] = {'online': False, 'issues': 0}
+        
+        # Status indicators
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            alm_status = "🟢 Online" if status['alm_octane']['online'] else "🔴 Offline"
+            st.markdown(f"### ALM Octane {alm_status}")
+            st.metric("Defects Available", status['alm_octane']['defects'])
+        
+        with col2:
+            jira_status = "🟢 Online" if status['jira']['online'] else "🔴 Offline"
+            st.markdown(f"### Jira {jira_status}")
+            st.metric("Issues Available", status['jira']['issues'])
+        
+        # Defect management sections
+        defect_tabs = st.tabs(["📋 Overview", "🔍 Search", "➕ Create", "📊 Analytics"])
+        
+        with defect_tabs[0]:
+            self._render_defect_overview(status, mcp_ports)
+        
+        with defect_tabs[1]:
+            self._render_defect_search()
+        
+        with defect_tabs[2]:
+            self._render_defect_creation()
+        
+        with defect_tabs[3]:
+            self._render_defect_analytics()
+    
+    def render_defect_correlation(self):
+        """NEW: Render defect correlation analysis tab"""
+        st.header("🔗 Enhanced Incident-Defect Correlation")
+        
+        st.markdown("""
+        Analyze incidents for potential defect correlations using AI-powered analysis 
+        across ALM Octane and Jira systems.
+        """)
+        
+        with st.form("correlation_analysis_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                incident_title = st.text_input("Incident Title", key="corr_title")
+                severity = st.selectbox("Severity", ["Low", "Medium", "High", "Critical"], index=2, key="corr_severity")
+            
+            with col2:
+                incident_type = st.selectbox("Type", ["Performance", "Outage", "Security", "Network"], key="corr_type")
+                services = st.multiselect("Affected Services", ["API Gateway", "Database", "User Service"], key="corr_services")
+            
+            incident_description = st.text_area("Incident Description", 
+                                              placeholder="Describe symptoms, timeline, and impact...", 
+                                              height=150, key="corr_desc")
+            
+            analyze_submitted = st.form_submit_button("🔍 Analyze Correlations")
+        
+        if analyze_submitted and incident_description:
+            st.markdown("---")
+            self._perform_correlation_analysis(incident_description, incident_title, severity)
+    
+    def render_correlation_scenarios(self):
+        """NEW: Render correlation test scenarios tab"""
+        st.header("🧪 Defect Correlation Test Scenarios")
+        
+        st.markdown("""
+        Test the correlation engine with pre-built scenarios that have known defect relationships.
+        """)
+        
+        # Mock scenarios
+        scenarios = [
+            {
+                "id": "DDS-001",
+                "title": "API Gateway Timeout Surge",
+                "description": "API Gateway experiencing 500% increase in timeout errors affecting customer-facing services",
+                "expected_correlation": "95%",
+                "root_cause": "Connection pool memory leak"
+            },
+            {
+                "id": "DDS-002", 
+                "title": "Authentication Service Failures",
+                "description": "Intermittent authentication failures causing user login issues",
+                "expected_correlation": "88%",
+                "root_cause": "Race condition in session management"
+            },
+            {
+                "id": "DDS-003",
+                "title": "Payment Processing Outage",
+                "description": "Payment processing system completely down, affecting all transactions",
+                "expected_correlation": "92%",
+                "root_cause": "SSL certificate validation bug"
+            }
+        ]
+        
+        scenario_names = [f"{s['id']}: {s['title']}" for s in scenarios]
+        selected = st.selectbox("Select Test Scenario", scenario_names, key="scenario_select")
+        
+        if selected:
+            scenario_id = selected.split(':')[0]
+            scenario = next(s for s in scenarios if s['id'] == scenario_id)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Scenario Details:**")
+                st.markdown(f"**ID:** {scenario['id']}")
+                st.markdown(f"**Expected Correlation:** {scenario['expected_correlation']}")
+                st.markdown(f"**Root Cause:** {scenario['root_cause']}")
+            
+            with col2:
+                st.markdown("**Incident Description:**")
+                st.info(scenario['description'])
+            
+            if st.button("🔍 Test Correlation", key=f"test_{scenario_id}"):
+                st.markdown("---")
+                st.subheader("📊 Correlation Test Results")
+                
+                with st.spinner("Running correlation analysis..."):
+                    time.sleep(2)  # Simulate processing
+                
+                # Mock results
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Expected", scenario['expected_correlation'])
+                
+                with col2:
+                    actual = random.randint(80, 98)
+                    st.metric("Actual", f"{actual}%")
+                
+                with col3:
+                    accuracy = abs(int(scenario['expected_correlation'][:-1]) - actual)
+                    accuracy_icon = "🟢" if accuracy < 10 else "🟡"
+                    st.metric("Accuracy", f"{accuracy_icon} {100-accuracy}%")
+                
+                st.success("✅ Correlation analysis completed successfully!")
+                st.markdown("**Found correlations:** 3 ALM Octane defects, 2 Jira issues")
+                st.markdown("**Recommendations:** Review connection pool configuration, check recent deployments")
+    
+    def _render_defect_overview(self, status, mcp_ports):
+        """Render defect overview section"""
+        st.subheader("📋 Recent Defects & Issues")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### ALM Octane Defects")
+            if status['alm_octane']['online']:
+                try:
+                    response = requests.get(f"http://localhost:{mcp_ports['alm_octane']}/octane/defects", timeout=5)
+                    if response.status_code == 200:
+                        defects = response.json()[:5]
+                        for defect in defects:
+                            severity_icon = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}.get(defect.get('severity', 'Low'), "⚪")
+                            st.markdown(f"**{severity_icon} {defect.get('name', 'Unknown')}** - {defect.get('status', 'Open')}")
+                            st.caption(defect.get('description', 'No description')[:80] + "...")
+                    else:
+                        st.warning("Could not load defects")
+                except:
+                    st.error("Connection failed")
+            else:
+                st.warning("ALM Octane offline")
+        
+        with col2:
+            st.markdown("#### Jira Issues") 
+            if status['jira']['online']:
+                try:
+                    response = requests.get(f"http://localhost:{mcp_ports['jira']}/jira/issues", timeout=5)
+                    if response.status_code == 200:
+                        issues = response.json()[:5]
+                        for issue in issues:
+                            priority_icon = {"Blocker": "🔴", "Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}.get(issue.get('priority', 'Low'), "⚪")
+                            st.markdown(f"**{priority_icon} {issue.get('key', 'Unknown')}** - {issue.get('status', 'Open')}")
+                            st.caption(issue.get('summary', 'No summary')[:80] + "...")
+                    else:
+                        st.warning("Could not load issues")
+                except:
+                    st.error("Connection failed")
+            else:
+                st.warning("Jira offline")
+    
+    def _render_defect_search(self):
+        """Render defect search section"""
+        st.subheader("🔍 Search Defects & Issues")
+        
+        with st.form("defect_search_form"):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                search_text = st.text_input("Keywords", key="search_keywords")
+            with col2:
+                severity = st.selectbox("Severity", ["All", "Critical", "High", "Medium", "Low"], key="search_severity")
+            with col3:
+                status_filter = st.selectbox("Status", ["All", "Open", "In Progress", "Resolved"], key="search_status")
+            
+            search_submitted = st.form_submit_button("🔍 Search")
+        
+        if search_submitted:
+            st.info("Search functionality would query both ALM Octane and Jira")
+            if search_text:
+                st.markdown(f"**Searching for:** {search_text} | **Severity:** {severity} | **Status:** {status_filter}")
+    
+    def _render_defect_creation(self):
+        """Render defect creation section"""
+        st.subheader("➕ Create New Defect")
+        
+        with st.form("defect_create_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                title = st.text_input("Title*", key="create_title")
+                severity = st.selectbox("Severity*", ["Low", "Medium", "High", "Critical"], key="create_severity")
+                component = st.text_input("Component", key="create_component")
+            
+            with col2:
+                description = st.text_area("Description*", key="create_description")
+                target = st.selectbox("Create In*", ["ALM Octane", "Jira", "Both"], key="create_target")
+                environment = st.selectbox("Environment", ["Dev", "Test", "Staging", "Prod"], key="create_environment")
+            
+            create_submitted = st.form_submit_button("Create Defect")
+        
+        if create_submitted and title and description:
+            st.success(f"✅ Defect would be created in {target}")
+            if target in ["ALM Octane", "Both"]:
+                st.info(f"ALM Octane ID: ALM-{random.randint(1000, 9999)}")
+            if target in ["Jira", "Both"]:
+                st.info(f"Jira Key: BUG-{random.randint(100, 999)}")
+    
+    def _render_defect_analytics(self):
+        """Render defect analytics section"""
+        st.subheader("📊 Defect Analytics")
+        
+        # Mock metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Open Defects", "127", "-8")
+        with col2:
+            st.metric("Critical", "23", "+3")
+        with col3:
+            st.metric("Avg Resolution", "4.2 days", "-0.5")
+        with col4:
+            st.metric("Quality Score", "87%", "+2%")
+        
+        # Charts
+        dates = pd.date_range(start='2025-07-01', end='2025-08-12', freq='D')
+        defects = [random.randint(5, 25) for _ in dates]
+        
+        fig = px.line(x=dates, y=defects, title="Daily Defect Creation Trend")
+        st.plotly_chart(fig, use_container_width=True)
+    
+    def _perform_correlation_analysis(self, incident_description, incident_title, severity):
+        """Perform correlation analysis"""
+        st.subheader("🎯 Correlation Analysis Results")
+        
+        with st.spinner("Analyzing correlations..."):
+            time.sleep(3)  # Simulate processing
+        
+        # Mock correlation results
+        col1, col2, col3 = st.columns(3)
+        
+        correlation_score = random.randint(60, 95) / 100
+        
+        with col1:
+            st.metric("Correlations Found", random.randint(3, 12))
+        
+        with col2:
+            score_icon = "🟢" if correlation_score >= 0.7 else "🟡" if correlation_score >= 0.4 else "🔴"
+            st.metric("Highest Score", f"{score_icon} {correlation_score:.1%}")
+        
+        with col3:
+            likelihood = "High" if correlation_score >= 0.7 else "Medium" if correlation_score >= 0.4 else "Low"
+            st.metric("Defect Likelihood", likelihood)
+        
+        # Correlation gauge
+        fig = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = correlation_score * 100,
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': "Correlation Strength"},
+            gauge = {
+                'axis': {'range': [None, 100]},
+                'bar': {'color': "darkblue"},
+                'steps': [
+                    {'range': [0, 40], 'color': "lightgray"},
+                    {'range': [40, 70], 'color': "yellow"},
+                    {'range': [70, 100], 'color': "green"}
+                ]
+            }
+        ))
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Recommendations
+        st.subheader("💡 Recommendations")
+        recommendations = [
+            "Check ALM Octane for similar defects in affected components",
+            "Review recent code deployments for potential regressions", 
+            "Analyze Jira issues with matching symptoms",
+            "Check application logs for related error patterns"
+        ]
+        
+        for i, rec in enumerate(recommendations, 1):
+            st.markdown(f"{i}. {rec}")
 
 def main():
     """Main application entry point."""

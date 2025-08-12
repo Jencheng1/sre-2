@@ -1,0 +1,52 @@
+{
+  "strands_agents": {
+    "splunk": {
+      "name": "splunk",
+      "model": "claude-4-sonnet",
+      "region": "us-east-1",
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3,
+      "custom_parameters": {
+        "default_time_range": "-1h",
+        "max_search_results": 100,
+        "enable_real_time": false
+      }
+    },
+    "dynatrace": {
+      "name": "dynatrace",
+      "model": "claude-4-sonnet",
+      "region": "us-east-1",
+      "enabled": true,
+      "test_mode": true,
+      "timeout": 30,
+      "retry_count": 3,
+      "custom_parameters": {
+        "default_time_range": "-30m",
+        "include_traces": true,
+        "trace_duration_threshold": 1000
+      }
+    }
+  },
+  "orchestrator": {
+    "enabled": true,
+    "max_parallel_agents": 5,
+    "session_timeout": 3600,
+    "enable_correlation": true,
+    "confidence_threshold": 70.0
+  },
+  "aws_settings": {
+    "region": "us-east-1",
+    "bedrock_model": "claude-4-sonnet",
+    "enable_xray": true,
+    "enable_cloudwatch_logs": true,
+    "parameter_store_prefix": "/sre-copilot/strands-agents"
+  },
+  "security": {
+    "enable_iam_roles": true,
+    "enable_vpc_endpoints": true,
+    "encrypt_parameters": true,
+    "log_level": "INFO"
+  }
+}

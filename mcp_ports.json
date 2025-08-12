@@ -3,5 +3,7 @@
   "dynatrace": 9081,
   "servicenow": 9082,
   "confluence": 9083,
-  "gitlab": 9084
+  "gitlab": 9084,
+  "alm_octane": 9085,
+  "jira": 9086
 }
