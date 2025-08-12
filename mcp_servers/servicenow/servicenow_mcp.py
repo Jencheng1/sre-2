@@ -16,6 +16,7 @@ class ServiceNowMCPServer:
         self.app = Flask(__name__)
         self.incidents = []  # In-memory storage for test mode
         self.changes = []
+        self.problems = []  # Add problems storage
         self.cmdb_items = []
         self.setup_routes()
         self.init_test_data()
@@ -83,6 +84,24 @@ class ServiceNowMCPServer:
             ci_class = request.args.get('class', '')
             
             return jsonify(self.get_cmdb_items(ci_name, ci_class))
+        
+        @self.app.route('/servicenow/problems', methods=['GET', 'POST'])
+        def problems_endpoint():
+            if request.method == 'GET':
+                filters = request.args.to_dict()
+                return jsonify(self.get_problems(filters))
+            else:
+                data = request.json
+                return jsonify(self.create_problem(data))
+        
+        @self.app.route('/servicenow/problems/<problem_id>', methods=['PUT'])
+        def update_problem_endpoint(problem_id):
+            data = request.json
+            return jsonify(self.update_problem(problem_id, data))
+        
+        @self.app.route('/servicenow/problems/by-incident/<incident_id>', methods=['GET'])
+        def problems_by_incident_endpoint(incident_id):
+            return jsonify(self.get_problems_by_incident(incident_id))
     
     def get_incidents(self, filters: Dict[str, str]) -> List[Dict[str, Any]]:
         """Get incidents based on filters"""
@@ -147,6 +166,80 @@ class ServiceNowMCPServer:
                 results = [ci for ci in results if ci['class'].lower() == ci_class.lower()]
                 
             return results
+    
+    def get_problems(self, filters: Dict[str, str]) -> List[Dict[str, Any]]:
+        """Get problems based on filters"""
+        if self.test_mode:
+            results = self.problems.copy()
+            
+            # Apply filters
+            if filters.get('state'):
+                results = [p for p in results if p['state'].lower() == filters['state'].lower()]
+            if filters.get('priority'):
+                results = [p for p in results if p['priority'] == filters['priority']]
+            if filters.get('category'):
+                results = [p for p in results if p['category'].lower() == filters['category'].lower()]
+                
+            return results
+    
+    def create_problem(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new problem"""
+        if self.test_mode:
+            problem_id = f"PRB{len(self.problems) + 1:07d}"
+            problem = {
+                "problem_id": problem_id,
+                "sys_id": str(uuid.uuid4()),
+                "number": problem_id,
+                "short_description": data.get("short_description", ""),
+                "description": data.get("description", ""),
+                "state": data.get("state", "New"),
+                "impact": data.get("impact", "3 - Low"),
+                "urgency": data.get("urgency", "3 - Low"),
+                "priority": data.get("priority", "4 - Low"),
+                "category": data.get("category", "Software"),
+                "subcategory": data.get("subcategory", "Application"),
+                "assignment_group": data.get("assignment_group", "SRE Team"),
+                "assigned_to": data.get("assigned_to", ""),
+                "source_incident_id": data.get("source_incident_id", ""),
+                "problem_statement": data.get("problem_statement", ""),
+                "workaround": data.get("workaround", ""),
+                "known_error": data.get("known_error", False),
+                "root_cause_analysis": data.get("root_cause_analysis", "In Progress"),
+                "resolution_notes": data.get("resolution_notes", ""),
+                "created_by": data.get("created_by", "MCP Integration"),
+                "opened_at": data.get("opened_at", datetime.now().isoformat()),
+                "created_on": datetime.now().isoformat(),
+                "updated_on": datetime.now().isoformat(),
+                "url": f"https://company.service-now.com/nav_to.do?uri=problem.do?sys_id={problem_id}"
+            }
+            
+            self.problems.append(problem)
+            return problem
+    
+    def update_problem(self, problem_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an existing problem"""
+        if self.test_mode:
+            # Find the problem
+            problem = None
+            for p in self.problems:
+                if p['problem_id'] == problem_id or p['sys_id'] == problem_id:
+                    problem = p
+                    break
+            
+            if problem:
+                # Update fields
+                for key, value in data.items():
+                    if key in problem:
+                        problem[key] = value
+                problem['updated_on'] = datetime.now().isoformat()
+                return problem
+            else:
+                return {"error": f"Problem {problem_id} not found"}
+    
+    def get_problems_by_incident(self, incident_id: str) -> List[Dict[str, Any]]:
+        """Get all problems associated with an incident"""
+        if self.test_mode:
+            return [p for p in self.problems if p.get('source_incident_id') == incident_id]
     
     def start_server(self, port=8082):
         """Start the MCP server"""

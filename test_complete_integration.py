@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Final comprehensive test suite - verifies all components working together
+Complete Integration Test
+Tests all enhanced functionality: defect creation, change correlation, and ServiceNow problem management
 """
 
-import unittest
 import requests
+import boto3
 import json
-import time
 from datetime import datetime
 import sys
 import os
@@ -14,15 +14,14 @@ import os
 # Add path for modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from feedback.feedback_system import FeedbackSystem
-from enhanced_incident_scenarios import EnhancedIncidentScenarios
+from change_incident_correlator import ChangeIncidentCorrelator
+from servicenow_problem_integration import ServiceNowProblemManager
 
-# Load MCP ports
-with open('mcp_ports.json', 'r') as f:
-    MCP_PORTS = json.load(f)
-
-class TestCompleteIntegration(unittest.TestCase):
-    """Test complete SRE Copilot integration"""
+def test_complete_workflow():
+    """Test complete workflow: Incident -> Defect + Change Analysis + Problem Management"""
+    
+    print("🧪 Complete Integration Test - Enhanced SRE Copilot")
+    print("=" * 70)
     
     @classmethod
     def setUpClass(cls):

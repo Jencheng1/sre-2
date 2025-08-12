@@ -1,0 +1,326 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "CHG-INCIDENT-001",
+      "incident_title": "API Gateway 500 Errors After Deployment",
+      "incident_description": "\n                API Gateway experiencing massive increase in 500 errors starting at 14:30 UTC.\n                Error rate jumped from 0.1% to 15% affecting all customer-facing endpoints.\n                Users reporting \"Service Temporarily Unavailable\" errors.\n                Database connections showing timeout errors in application logs.\n                Lambda functions returning unhandled exceptions.\n                ",
+      "incident_severity": "Critical",
+      "incident_duration_minutes": 45,
+      "incident_created_time": "2025-08-12T09:07:16.367001",
+      "root_cause_change": {
+        "change_id": "CHG-2024-001",
+        "change_title": "[CHANGE] Deploy web-service v3.2.1 to Production",
+        "change_description": "Deployment of web-service version 3.2.1 including new authentication middleware and database connection pool optimization",
+        "change_type": "deployment",
+        "risk_level": "high",
+        "change_time": "2025-08-12T08:37:16.367001",
+        "affected_services": [
+          "web-service",
+          "api-gateway",
+          "database",
+          "auth-service"
+        ],
+        "deployed_by": "john.doe@company.com",
+        "approval_status": "approved",
+        "rollback_time": "2025-08-12T09:22:16.367001"
+      },
+      "correlation_evidence": {
+        "temporal_correlation": 0.95,
+        "service_overlap": 1.0,
+        "deployment_indicators": 0.9,
+        "error_pattern_match": 0.85,
+        "rollback_success": 1.0
+      },
+      "correlation_confidence": 0.92,
+      "resolution_actions": [
+        "Immediate rollback to v3.2.0",
+        "Database connection pool configuration reverted",
+        "Authentication middleware disabled temporarily",
+        "Full regression testing initiated"
+      ],
+      "lessons_learned": [
+        "Database connection pool changes require extended load testing",
+        "Authentication middleware needs gradual rollout",
+        "Implement canary deployments for high-risk changes"
+      ],
+      "change_impact_analysis": {
+        "customers_affected": 15000,
+        "revenue_impact_usd": 45000,
+        "sla_breach": true,
+        "regulatory_impact": false
+      }
+    },
+    {
+      "scenario_id": "CHG-INCIDENT-002",
+      "incident_title": "Database Connection Timeouts After Configuration Change",
+      "incident_description": "\n                RDS database experiencing connection timeout issues starting at 09:15 UTC.\n                Connection pool exhaustion observed in application monitoring.\n                Web applications showing \"Database connection timeout\" errors.\n                Query response times increased from 50ms to 5000ms average.\n                Connection count spiking to maximum limit of 100.\n                ",
+      "incident_severity": "High",
+      "incident_duration_minutes": 90,
+      "incident_created_time": "2025-08-12T07:07:16.367001",
+      "root_cause_change": {
+        "change_id": "CHG-2024-002",
+        "change_title": "[CHANGE] Update RDS parameter group settings",
+        "change_description": "Modified max_connections from 1000 to 100 and connection timeout from 300s to 30s for cost optimization",
+        "change_type": "configuration",
+        "risk_level": "medium",
+        "change_time": "2025-08-12T06:47:16.367001",
+        "affected_services": [
+          "rds",
+          "database",
+          "web-service",
+          "api-service"
+        ],
+        "changed_by": "dba-team@company.com",
+        "approval_status": "approved",
+        "revert_time": "2025-08-12T08:37:16.367001"
+      },
+      "correlation_evidence": {
+        "temporal_correlation": 0.88,
+        "service_overlap": 0.9,
+        "configuration_correlation": 0.95,
+        "metric_correlation": 0.92,
+        "parameter_match": 1.0
+      },
+      "correlation_confidence": 0.89,
+      "resolution_actions": [
+        "Reverted max_connections to 1000",
+        "Restored connection timeout to 300s",
+        "Implemented connection pool monitoring",
+        "Updated change management process for database parameters"
+      ],
+      "lessons_learned": [
+        "Database parameter changes require thorough load testing",
+        "Connection limits must consider peak usage patterns",
+        "Implement gradual parameter rollouts with monitoring"
+      ],
+      "change_impact_analysis": {
+        "customers_affected": 8500,
+        "revenue_impact_usd": 12000,
+        "sla_breach": false,
+        "regulatory_impact": false
+      }
+    },
+    {
+      "scenario_id": "CHG-INCIDENT-003",
+      "incident_title": "Load Balancer Health Check Failures",
+      "incident_description": "\n                Application Load Balancer marking all targets as unhealthy at 11:45 UTC.\n                All traffic being rejected with 503 Service Unavailable errors.\n                Health check endpoint responding with 200 OK but marked as failed.\n                EC2 instances showing healthy in CloudWatch but unhealthy in ALB.\n                Auto scaling triggered unnecessary instance launches.\n                ",
+      "incident_severity": "Critical",
+      "incident_duration_minutes": 25,
+      "incident_created_time": "2025-08-12T05:07:16.367001",
+      "root_cause_change": {
+        "change_id": "CHG-2024-003",
+        "change_title": "[CHANGE] Update ALB health check configuration",
+        "change_description": "Modified health check path from /health to /api/health and reduced interval from 30s to 5s",
+        "change_type": "configuration",
+        "risk_level": "low",
+        "change_time": "2025-08-12T04:57:16.367001",
+        "affected_services": [
+          "alb",
+          "load-balancer",
+          "web-service",
+          "auto-scaling"
+        ],
+        "changed_by": "devops-team@company.com",
+        "approval_status": "approved",
+        "fix_time": "2025-08-12T05:32:16.367001"
+      },
+      "correlation_evidence": {
+        "temporal_correlation": 0.94,
+        "service_overlap": 1.0,
+        "configuration_correlation": 0.98,
+        "health_check_correlation": 1.0,
+        "immediate_impact": 0.95
+      },
+      "correlation_confidence": 0.96,
+      "resolution_actions": [
+        "Reverted health check path to /health",
+        "Restored health check interval to 30s",
+        "Verified application health endpoint functionality",
+        "Updated documentation for health check requirements"
+      ],
+      "lessons_learned": [
+        "Health check path changes require application team coordination",
+        "Reduced intervals can cause false positives",
+        "Test health check changes in staging environment first"
+      ],
+      "change_impact_analysis": {
+        "customers_affected": 25000,
+        "revenue_impact_usd": 75000,
+        "sla_breach": true,
+        "regulatory_impact": false
+      }
+    },
+    {
+      "scenario_id": "CHG-INCIDENT-004",
+      "incident_title": "Lambda Function Memory Errors After Update",
+      "incident_description": "\n                Lambda function payment-processor experiencing out of memory errors at 16:20 UTC.\n                Function execution duration increased from 2s to 45s before timeout.\n                CloudWatch showing \"Runtime exited with error: signal: killed\" messages.\n                Payment processing queue backing up with 500+ messages.\n                Customer payment failures spiking to 25% failure rate.\n                ",
+      "incident_severity": "High",
+      "incident_duration_minutes": 60,
+      "incident_created_time": "2025-08-12T03:07:16.367001",
+      "root_cause_change": {
+        "change_id": "CHG-2024-004",
+        "change_title": "[CHANGE] Optimize Lambda memory allocation",
+        "change_description": "Reduced memory allocation from 1024MB to 256MB for cost optimization across payment processing functions",
+        "change_type": "configuration",
+        "risk_level": "medium",
+        "change_time": "2025-08-12T02:52:16.367001",
+        "affected_services": [
+          "lambda",
+          "payment-processor",
+          "payment-queue",
+          "billing-service"
+        ],
+        "changed_by": "cost-optimization-team@company.com",
+        "approval_status": "approved",
+        "fix_time": "2025-08-12T03:47:16.367001"
+      },
+      "correlation_evidence": {
+        "temporal_correlation": 0.92,
+        "service_overlap": 0.95,
+        "resource_correlation": 1.0,
+        "memory_usage_correlation": 0.98,
+        "performance_degradation": 0.96
+      },
+      "correlation_confidence": 0.94,
+      "resolution_actions": [
+        "Increased memory allocation back to 1024MB",
+        "Implemented memory usage monitoring",
+        "Analyzed function memory requirements",
+        "Created memory optimization guidelines"
+      ],
+      "lessons_learned": [
+        "Memory optimization requires performance testing",
+        "Monitor actual memory usage before reducing allocations",
+        "Implement gradual memory reduction with monitoring"
+      ],
+      "change_impact_analysis": {
+        "customers_affected": 3500,
+        "revenue_impact_usd": 28000,
+        "sla_breach": false,
+        "regulatory_impact": true
+      }
+    },
+    {
+      "scenario_id": "CHG-INCIDENT-005",
+      "incident_title": "Network Connectivity Issues After Security Group Update",
+      "incident_description": "\n                Intermittent network connectivity issues between services at 13:10 UTC.\n                Microservices unable to communicate with backend database.\n                API calls timing out with \"Connection refused\" errors.\n                Service mesh showing 50% connection failure rate.\n                Health checks failing for dependent services.\n                ",
+      "incident_severity": "High",
+      "incident_duration_minutes": 75,
+      "incident_created_time": "2025-08-12T01:07:16.367001",
+      "root_cause_change": {
+        "change_id": "CHG-2024-005",
+        "change_title": "[CHANGE] Tighten security group rules for database access",
+        "change_description": "Removed broad 0.0.0.0/0 access and restricted database security group to specific application subnets",
+        "change_type": "security",
+        "risk_level": "high",
+        "change_time": "2025-08-12T00:47:16.367001",
+        "affected_services": [
+          "ec2",
+          "rds",
+          "security-groups",
+          "vpc",
+          "microservices"
+        ],
+        "changed_by": "security-team@company.com",
+        "approval_status": "approved",
+        "fix_time": "2025-08-12T02:22:16.367001"
+      },
+      "correlation_evidence": {
+        "temporal_correlation": 0.91,
+        "service_overlap": 0.88,
+        "network_correlation": 0.97,
+        "security_change_correlation": 0.93,
+        "connectivity_pattern": 0.95
+      },
+      "correlation_confidence": 0.91,
+      "resolution_actions": [
+        "Added missing subnet ranges to security group rules",
+        "Verified application server IP ranges",
+        "Implemented connection testing procedures",
+        "Updated security group change checklist"
+      ],
+      "lessons_learned": [
+        "Security group changes require comprehensive testing",
+        "Document all service communication patterns",
+        "Implement network connectivity validation in CI/CD"
+      ],
+      "change_impact_analysis": {
+        "customers_affected": 12000,
+        "revenue_impact_usd": 35000,
+        "sla_breach": false,
+        "regulatory_impact": false
+      }
+    },
+    {
+      "scenario_id": "CHG-INCIDENT-006",
+      "incident_title": "Auto Scaling Storm After Policy Update",
+      "incident_description": "\n                Auto Scaling Group launching excessive EC2 instances at 10:30 UTC.\n                Instance count increased from 5 to 45 within 10 minutes.\n                CloudWatch showing CPU utilization spikes triggering scale-out.\n                Application performance degraded due to database connection exhaustion.\n                AWS cost alerts triggered for unexpected resource usage.\n                ",
+      "incident_severity": "Medium",
+      "incident_duration_minutes": 120,
+      "incident_created_time": "2025-08-11T23:07:16.367001",
+      "root_cause_change": {
+        "change_id": "CHG-2024-006",
+        "change_title": "[CHANGE] Update auto scaling policy thresholds",
+        "change_description": "Modified CPU threshold from 70% to 30% and scale-out cooldown from 300s to 60s for better responsiveness",
+        "change_type": "configuration",
+        "risk_level": "medium",
+        "change_time": "2025-08-11T22:52:16.367001",
+        "affected_services": [
+          "auto-scaling",
+          "ec2",
+          "cloudwatch",
+          "database"
+        ],
+        "changed_by": "platform-team@company.com",
+        "approval_status": "approved",
+        "fix_time": "2025-08-12T01:07:16.367001"
+      },
+      "correlation_evidence": {
+        "temporal_correlation": 0.93,
+        "service_overlap": 0.92,
+        "scaling_correlation": 1.0,
+        "threshold_correlation": 0.96,
+        "cost_impact_correlation": 0.89
+      },
+      "correlation_confidence": 0.93,
+      "resolution_actions": [
+        "Reverted CPU threshold to 70%",
+        "Restored scale-out cooldown to 300s",
+        "Terminated excess instances",
+        "Implemented scaling policy testing procedures"
+      ],
+      "lessons_learned": [
+        "Scaling threshold changes require historical analysis",
+        "Consider application startup time in cooldown periods",
+        "Monitor cost impact of scaling policy changes"
+      ],
+      "change_impact_analysis": {
+        "customers_affected": 5000,
+        "revenue_impact_usd": 8000,
+        "sla_breach": false,
+        "regulatory_impact": false
+      }
+    }
+  ],
+  "summary": {
+    "total_scenarios": 6,
+    "change_type_distribution": {
+      "deployment": 1,
+      "configuration": 4,
+      "security": 1
+    },
+    "severity_distribution": {
+      "Critical": 2,
+      "High": 3,
+      "Medium": 1
+    },
+    "average_correlation_confidence": 0.925,
+    "business_impact": {
+      "total_customers_affected": 69000,
+      "total_revenue_impact_usd": 203000,
+      "sla_breaches": 2,
+      "regulatory_incidents": 1
+    }
+  },
+  "export_timestamp": "2025-08-12T11:07:16.367408"
+}

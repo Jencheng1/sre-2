@@ -1,0 +1,64 @@
+{
+  "summary": {
+    "total_tests": 10,
+    "passed_tests": 9,
+    "failed_tests": 1,
+    "success_rate": 90.0,
+    "timestamp": "2025-08-12T11:30:31.180094"
+  },
+  "test_results": [
+    {
+      "test": "Streamlit Accessibility",
+      "status": "PASS",
+      "details": "Status Code: 200"
+    },
+    {
+      "test": "Defect Management Servers",
+      "status": "FAIL",
+      "details": "ALM Octane: \u274c, Jira: \u274c"
+    },
+    {
+      "test": "Incident Retrieval",
+      "status": "PASS",
+      "details": "Retrieved 10 incidents from AWS SSM"
+    },
+    {
+      "test": "Change Correlation Engine",
+      "status": "PASS",
+      "details": "Analyzed 5 changes, found 4 correlations"
+    },
+    {
+      "test": "Change Scenarios Loading",
+      "status": "PASS",
+      "details": "Loaded 6 scenarios with avg confidence 92.5%"
+    },
+    {
+      "test": "Defect Scenarios Loading",
+      "status": "PASS",
+      "details": "Loaded 5 defect scenarios"
+    },
+    {
+      "test": "Defect Creation API",
+      "status": "PASS",
+      "details": "ALM Octane: \u2705, Jira: \u2705"
+    },
+    {
+      "test": "Streamlit Imports",
+      "status": "PASS",
+      "details": "Change Correlator: \u2705, Change Scenarios: \u2705, Defect Scenarios: \u2705"
+    },
+    {
+      "test": "Streamlit Log Errors",
+      "status": "PASS",
+      "details": "No errors found in log"
+    },
+    {
+      "test": "Enhanced UI Accessibility",
+      "status": "PASS",
+      "details": "Streamlit health check: \u2705 Responsive"
+    }
+  ],
+  "recommendations": [
+    "Start defect management MCP servers: python3 start_defect_management_mcp_servers.py"
+  ]
+}
