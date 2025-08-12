@@ -1,0 +1,63 @@
+{
+  "migration_timestamp": "2025-08-11T18:29:42.358000",
+  "source": "MCP Servers",
+  "target": "AWS Strands Agents",
+  "summary": {
+    "mcp_servers_found": 6,
+    "strands_agents_created": 5,
+    "migration_success": true
+  },
+  "mappings": [
+    {
+      "mcp_server": "splunk",
+      "strands_agent": "splunk",
+      "endpoint_before": "http://localhost:8080/splunk",
+      "model_after": "claude-4-sonnet",
+      "status": "migrated"
+    },
+    {
+      "mcp_server": "dynatrace",
+      "strands_agent": "dynatrace",
+      "endpoint_before": "http://localhost:8081/dynatrace",
+      "model_after": "claude-4-sonnet",
+      "status": "migrated"
+    },
+    {
+      "mcp_server": "servicenow",
+      "strands_agent": "servicenow",
+      "endpoint_before": "http://localhost:8082/servicenow",
+      "model_after": "claude-4-sonnet",
+      "status": "migrated"
+    },
+    {
+      "mcp_server": "confluence",
+      "strands_agent": "confluence",
+      "endpoint_before": "http://localhost:8083/confluence",
+      "model_after": "claude-4-sonnet",
+      "status": "migrated"
+    },
+    {
+      "mcp_server": "gitlab",
+      "strands_agent": "gitlab",
+      "endpoint_before": "http://localhost:8084/gitlab",
+      "model_after": "claude-4-sonnet",
+      "status": "migrated"
+    },
+    {
+      "mcp_server": "custom_monitoring",
+      "strands_agent": null,
+      "status": "not_migrated"
+    }
+  ],
+  "warnings": [
+    "MCP server 'custom_monitoring' could not be migrated - no Strands agent equivalent"
+  ],
+  "recommendations": [
+    "Test all agents after migration to ensure functionality",
+    "Update client code to use Strands Agents orchestrator instead of direct MCP calls",
+    "Configure AWS Bedrock model access for production use",
+    "Set up proper IAM roles and policies for security",
+    "Enable CloudWatch logging and X-Ray tracing for observability",
+    "Store sensitive credentials in AWS Systems Manager Parameter Store"
+  ]
+}
