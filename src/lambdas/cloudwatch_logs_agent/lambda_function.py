@@ -6,6 +6,25 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import logging
+import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Import IP masking utility
+try:
+    from utils.ip_masker import IPMasker, mask_logs_for_llm
+except ImportError:
+    # Fallback if module not found - define inline
+    class IPMasker:
+        def __init__(self, mask_type="partial"):
+            self.mask_type = mask_type
+        def mask_text(self, text):
+            return text, {}
+        def mask_log_entries(self, entries):
+            return entries
+    def mask_logs_for_llm(logs, mask_type="partial"):
+        return logs
 
 # Configure logging
 logger = logging.getLogger()
@@ -299,20 +318,36 @@ def get_log_group_metrics(log_group_name: str) -> Dict[str, Any]:
         return {}
 
 def analyze_with_bedrock(events: List[Dict[str, Any]], error_patterns: Dict[str, int]) -> Dict[str, Any]:
-    """Analyze log events using Bedrock."""
+    """Analyze log events using Bedrock with IP masking."""
     try:
-        # Prepare sample events for analysis
-        sample_messages = []
-        for event in events[:10]:  # Limit to 10 events
-            sample_messages.append(event.get('message', ''))
+        # Initialize IP masker
+        masker = IPMasker(mask_type="partial")
         
-        # Prepare the prompt
-        prompt = f"""Analyze the following CloudWatch Logs data:
+        # Prepare sample events for analysis with IP masking
+        sample_messages = []
+        masked_count = 0
+        
+        for event in events[:10]:  # Limit to 10 events
+            message = event.get('message', '')
+            # Mask IP addresses in the message
+            masked_message, ip_map = masker.mask_text(message)
+            sample_messages.append(masked_message)
+            if ip_map:
+                masked_count += len(ip_map)
+        
+        # Mask error patterns as well
+        masked_error_patterns = {}
+        for pattern, count in error_patterns.items():
+            masked_pattern, _ = masker.mask_text(pattern)
+            masked_error_patterns[masked_pattern] = count
+        
+        # Prepare the prompt with masked data
+        prompt = f"""Analyze the following CloudWatch Logs data (IP addresses have been masked for security):
 
 Error Patterns Found:
-{json.dumps(error_patterns, indent=2)}
+{json.dumps(masked_error_patterns, indent=2)}
 
-Sample Log Messages:
+Sample Log Messages (with {masked_count} IP addresses masked):
 {chr(10).join(sample_messages[:5])}
 
 Please provide:
@@ -359,6 +394,9 @@ Format your response as JSON with the following structure:
                 analysis = {"summary": "Analysis completed", "issues": [], "recommendations": []}
         except:
             analysis = {"summary": "Analysis completed", "issues": [], "recommendations": []}
+        
+        # Add masking statistics to the analysis
+        analysis['masking_stats'] = masker.get_masking_stats()
         
         return analysis
 

@@ -19,6 +19,10 @@ import requests
 from botocore.exceptions import ClientError
 from user_guide_content import get_all_guides, get_guide_titles
 from streamlit_key_manager import key_manager
+from dataclasses import asdict
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Add path for MCP modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -32,6 +36,22 @@ try:
 except ImportError:
     MCP_AVAILABLE = False
     print("MCP modules not available - running in standard mode")
+
+# Import IP masking utility
+try:
+    from utils.ip_masker import IPMasker, mask_logs_for_llm
+    IP_MASKING_AVAILABLE = True
+except ImportError:
+    IP_MASKING_AVAILABLE = False
+    print("IP masking utility not available")
+
+# Import post-mortem agent
+try:
+    from postmortem.postmortem_agent import PostMortemAgent, PostMortemReport
+    POSTMORTEM_AVAILABLE = True
+except ImportError:
+    POSTMORTEM_AVAILABLE = False
+    print("Post-mortem agent not available")
 
 # Load MCP ports configuration
 try:
@@ -606,6 +626,7 @@ class EnhancedSREDashboard:
             for i, incident in enumerate(reversed(st.session_state.generated_incidents[-5:])):
                 if st.button(f"📋 {incident['type']} - {incident['start_time'].strftime('%H:%M')}", key=key_manager.get_loop_key("recent_incident", i)):
                     st.session_state.current_incident = incident
+            
                     
     def generate_incident(self, incident_type):
         """Generate a real incident in AWS or MCP test scenario."""
@@ -929,59 +950,85 @@ class EnhancedSREDashboard:
         st.markdown('<h1 class="main-header">🔍 SRE Copilot - Real-Time Root Cause Analysis</h1>', 
                    unsafe_allow_html=True)
         
-        # Main navigation tabs - add MCP tabs if available + NEW defect management tabs
-        tab_names = ["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics"]
+        # Create navigation selector for groups
+        nav_options = ["🏠 Core Features", "🛠️ Advanced Tools", "📊 Additional Features"]
+        selected_nav = st.radio(
+            "Navigation", 
+            nav_options,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="main_navigation"
+        )
         
-        # Add NEW defect management tabs
-        tab_names.extend(["🐛 Defect Management", "🔗 Defect Correlation", "🧪 Correlation Scenarios"])
-        
-        if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
-            tab_names.extend(["🌐 MCP Status", "📈 Feedback Analytics"])
-        tab_names.append("❓ User Guide")
+        # Define tab groups
+        if selected_nav == "🏠 Core Features":
+            tab_names = ["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics"]
+            tab_offset = 0
+        elif selected_nav == "🛠️ Advanced Tools":
+            tab_names = ["🐛 Defect Management", "🔗 Defect Correlation", "🧪 Correlation Scenarios", "📋 Post-Mortem", "🔐 IP Masking"]
+            tab_offset = 5
+        else:  # Additional Features
+            tab_names = ["🧪 Test Scenarios"]
+            if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
+                tab_names.extend(["🌐 MCP Status", "📈 Feedback Analytics"])
+            tab_names.append("❓ User Guide")
+            tab_offset = 10
         
         main_tabs = st.tabs(tab_names)
         
-        with main_tabs[0]:
-            if st.session_state.current_incident:
-                self.display_incident_details()
-            else:
-                self.display_welcome()
+        # Handle tab content based on navigation selection
+        if selected_nav == "🏠 Core Features":
+            with main_tabs[0]:
+                if st.session_state.current_incident:
+                    self.display_incident_details()
+                else:
+                    self.display_welcome()
+                    
+            with main_tabs[1]:
+                self.render_analyze_tab()
                 
-        with main_tabs[1]:
-            self.render_analyze_tab()
+            with main_tabs[2]:
+                self.render_recent_changes()
+                
+            with main_tabs[3]:
+                self.render_knowledge_base()
+                
+            with main_tabs[4]:
+                self.render_analytics()
+                
+        elif selected_nav == "🛠️ Advanced Tools":
+            with main_tabs[0]:
+                self.render_defect_management()
             
-        with main_tabs[2]:
-            self.render_recent_changes()
+            with main_tabs[1]:
+                self.render_defect_correlation()
             
-        with main_tabs[3]:
-            self.render_knowledge_base()
+            with main_tabs[2]:
+                self.render_correlation_scenarios()
             
-        with main_tabs[4]:
-            self.render_analytics()
-        
-        # NEW: Handle defect management tabs
-        with main_tabs[5]:
-            self.render_defect_management()
-        
-        with main_tabs[6]:
-            self.render_defect_correlation()
-        
-        with main_tabs[7]:
-            self.render_correlation_scenarios()
-        
-        # Handle MCP tabs if available
-        tab_idx = 8
-        if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
+            with main_tabs[3]:
+                self.render_postmortem_analysis()
+                
+            with main_tabs[4]:
+                self.render_ip_masking()
+                
+        else:  # Additional Features
+            tab_idx = 0
             with main_tabs[tab_idx]:
-                self.render_mcp_status()
+                self.render_test_scenarios()
             tab_idx += 1
             
+            if MCP_AVAILABLE and st.session_state.get('mcp_enabled', False):
+                with main_tabs[tab_idx]:
+                    self.render_mcp_status()
+                tab_idx += 1
+                
+                with main_tabs[tab_idx]:
+                    self.render_feedback_analytics()
+                tab_idx += 1
+                
             with main_tabs[tab_idx]:
-                self.render_feedback_analytics()
-            tab_idx += 1
-            
-        with main_tabs[tab_idx]:
-            self.render_user_guide()
+                self.render_user_guide()
             
     def render_analyze_tab(self):
         """Render the Analyze Incident tab."""
@@ -1323,8 +1370,33 @@ class EnhancedSREDashboard:
             # CloudWatch Logs Analysis
             if data.get('logs'):
                 st.markdown("#### 📝 CloudWatch Logs")
-                total_events = sum(len(events) for events in data['logs'].values())
-                st.metric("Total Log Events Analyzed", total_events)
+                
+                # Add IP masking toggle
+                col1, col2, col3 = st.columns([2, 2, 3])
+                with col1:
+                    total_events = sum(len(events) for events in data['logs'].values())
+                    st.metric("Total Log Events Analyzed", total_events)
+                
+                with col2:
+                    # Check if IP masking info is available
+                    masking_info = incident.get('monitoring_data', {}).get('logs', {})
+                    if masking_info.get('ip_masking_applied'):
+                        st.metric("IPs Masked", masking_info.get('masked_ip_count', 0))
+                
+                with col3:
+                    if IP_MASKING_AVAILABLE:
+                        # Toggle for showing masked/unmasked logs
+                        show_masked = st.toggle(
+                            "🔒 Show IP Masking", 
+                            value=True,
+                            help="Toggle to show logs with IP addresses masked for security"
+                        )
+                    else:
+                        show_masked = False
+                
+                # Display masking notification
+                if masking_info.get('ip_masking_applied'):
+                    st.info(f"🔒 IP addresses have been masked before sending to LLM for security. {masking_info.get('masked_ip_count', 0)} IPs were masked.")
                 
                 for log_group, events in data['logs'].items():
                     if events:
@@ -1332,7 +1404,21 @@ class EnhancedSREDashboard:
                         # Show sample events
                         with st.expander(f"View sample events from {log_group}"):
                             for event in events[:5]:
-                                st.text(event.get('message', ''))
+                                message = event.get('message', '')
+                                
+                                # Apply masking if toggle is on and masking is available
+                                if show_masked and IP_MASKING_AVAILABLE:
+                                    masker = IPMasker(mask_type="partial")
+                                    masked_message, ip_map = masker.mask_text(message)
+                                    if ip_map:
+                                        st.code(masked_message)
+                                        with st.expander("🔍 View IP Mapping"):
+                                            for orig, masked in ip_map.items():
+                                                st.text(f"{orig} → {masked}")
+                                    else:
+                                        st.text(message)
+                                else:
+                                    st.text(message)
                                 
             # CloudWatch Metrics Analysis
             if data.get('metrics'):
@@ -3502,6 +3588,1025 @@ class EnhancedSREDashboard:
         
         for i, rec in enumerate(recommendations, 1):
             st.markdown(f"{i}. {rec}")
+
+    def render_postmortem_analysis(self):
+        """Render the Post-Mortem Analysis tab"""
+        st.header("📋 Post-Mortem Analysis")
+        
+        st.markdown("""
+        Generate comprehensive post-mortem reports for resolved incidents with AI-powered insights,
+        root cause analysis, and actionable recommendations.
+        """)
+        
+        if not POSTMORTEM_AVAILABLE:
+            st.error("Post-mortem agent not available. Please check installation.")
+            return
+        
+        # Initialize session state
+        if 'postmortem_report' not in st.session_state:
+            st.session_state.postmortem_report = None
+        if 'postmortem_markdown' not in st.session_state:
+            st.session_state.postmortem_markdown = None
+        
+        # Post-mortem generation options
+        postmortem_tabs = st.tabs(["📝 Generate Report", "📊 View Reports", "🔍 Analyze OpsItem"])
+        
+        with postmortem_tabs[0]:
+            self._render_postmortem_generator()
+        
+        with postmortem_tabs[1]:
+            self._render_postmortem_viewer()
+            
+        with postmortem_tabs[2]:
+            self._render_opsitem_postmortem()
+
+    def _render_postmortem_generator(self):
+        """Render post-mortem report generator"""
+        st.subheader("Generate Post-Mortem Report")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Incident details form
+            with st.form("postmortem_form"):
+                st.markdown("### Incident Details")
+                
+                incident_id = st.text_input(
+                    "Incident ID",
+                    value=f"INC-{datetime.now().strftime('%Y%m%d-%H%M')}",
+                    help="Unique identifier for this incident"
+                )
+                
+                incident_type = st.selectbox(
+                    "Incident Type",
+                    ["outage", "performance", "security", "data_loss", "configuration"],
+                    help="Select the type of incident"
+                )
+                
+                severity = st.selectbox(
+                    "Severity",
+                    ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+                    help="Incident severity level"
+                )
+                
+                description = st.text_area(
+                    "Incident Description",
+                    placeholder="Describe what happened...",
+                    help="Provide a detailed description of the incident"
+                )
+                
+                # Time information
+                col_start, col_end = st.columns(2)
+                with col_start:
+                    start_date = st.date_input("Start Date", datetime.now().date())
+                    start_time = st.time_input("Start Time", datetime.now().time())
+                
+                with col_end:
+                    end_date = st.date_input("End Date", datetime.now().date())
+                    end_time = st.time_input("End Time", datetime.now().time())
+                
+                # Services affected
+                services = st.text_input(
+                    "Services Affected",
+                    placeholder="e.g., payment-api, auth-service",
+                    help="Comma-separated list of affected services"
+                )
+                
+                # Additional context
+                st.markdown("### Additional Context")
+                
+                detection_method = st.text_input(
+                    "How was the incident detected?",
+                    placeholder="e.g., Monitoring alert, customer report"
+                )
+                
+                immediate_actions = st.text_area(
+                    "Immediate Actions Taken",
+                    placeholder="List the initial response actions..."
+                )
+                
+                # Metrics data (optional)
+                include_metrics = st.checkbox("Include CloudWatch Metrics Analysis")
+                
+                submitted = st.form_submit_button("🚀 Generate Post-Mortem Report", type="primary")
+        
+        with col2:
+            # Recent incidents for reference
+            st.markdown("### Recent Incidents")
+            st.info("Select a recent incident to use as a template or reference")
+            
+            # Mock recent incidents
+            recent_incidents = [
+                {"id": "INC-20240115-001", "type": "outage", "title": "Database Connection Pool Exhaustion"},
+                {"id": "INC-20240114-003", "type": "performance", "title": "API Response Time Degradation"},
+                {"id": "INC-20240113-002", "type": "security", "title": "Unauthorized Access Attempt"}
+            ]
+            
+            for incident in recent_incidents:
+                if st.button(f"📄 {incident['id']}: {incident['title']}", key=f"recent_{incident['id']}"):
+                    st.info(f"Loading template from {incident['id']}...")
+        
+        # Process form submission
+        if submitted:
+            if not description:
+                st.error("Please provide an incident description")
+                return
+                
+            with st.spinner("🤖 Generating AI-powered post-mortem report..."):
+                try:
+                    # Prepare incident data
+                    start_datetime = datetime.combine(start_date, start_time)
+                    end_datetime = datetime.combine(end_date, end_time)
+                    
+                    incident_data = {
+                        'incident_id': incident_id,
+                        'type': incident_type,
+                        'severity': severity,
+                        'description': description,
+                        'start_time': start_datetime,
+                        'resolution_time': end_datetime.isoformat(),
+                        'service': services,
+                        'detection_method': detection_method,
+                        'immediate_actions': immediate_actions,
+                        'raw_data': {}
+                    }
+                    
+                    # Include metrics if requested
+                    if include_metrics:
+                        incident_data['raw_data']['metrics'] = {
+                            'CPUUtilization': [{'Maximum': 85, 'Timestamp': start_datetime.isoformat()}],
+                            'ErrorRate': [{'Maximum': 45, 'Timestamp': start_datetime.isoformat()}]
+                        }
+                    
+                    # Generate post-mortem
+                    agent = PostMortemAgent()
+                    report = agent.analyze_incident(incident_data)
+                    markdown_report = agent.generate_markdown_report(report)
+                    
+                    # Store in session state
+                    st.session_state.postmortem_report = report
+                    st.session_state.postmortem_markdown = markdown_report
+                    
+                    st.success("✅ Post-mortem report generated successfully!")
+                    
+                    # Show preview
+                    with st.expander("📄 Report Preview", expanded=True):
+                        st.markdown(markdown_report)
+                        
+                    # Download options
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.download_button(
+                            label="📥 Download Markdown",
+                            data=markdown_report,
+                            file_name=f"postmortem_{incident_id}.md",
+                            mime="text/markdown"
+                        )
+                    with col2:
+                        st.download_button(
+                            label="📥 Download JSON",
+                            data=json.dumps(asdict(report), indent=2),
+                            file_name=f"postmortem_{incident_id}.json",
+                            mime="application/json"
+                        )
+                    with col3:
+                        if st.button("📧 Email Report"):
+                            st.info("Email functionality coming soon!")
+                            
+                except Exception as e:
+                    st.error(f"Error generating post-mortem: {str(e)}")
+                    logger.error(f"Post-mortem generation error: {str(e)}")
+
+    def _render_postmortem_viewer(self):
+        """Render post-mortem report viewer"""
+        st.subheader("View Post-Mortem Reports")
+        
+        if st.session_state.postmortem_report:
+            report = st.session_state.postmortem_report
+            
+            # Report metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Duration", f"{report.duration_minutes} min")
+            with col2:
+                st.metric("Users Impacted", f"{report.users_impacted:,}")
+            with col3:
+                st.metric("Revenue Impact", report.revenue_impact)
+            with col4:
+                st.metric("AI Confidence", f"{report.ai_confidence_score:.0%}")
+            
+            # Main report sections
+            report_tabs = st.tabs(["📊 Summary", "⏱️ Timeline", "🔍 Analysis", "✅ Action Items", "📈 Metrics"])
+            
+            with report_tabs[0]:
+                # Executive Summary
+                st.markdown("### Executive Summary")
+                st.markdown(f"**Title:** {report.title}")
+                st.markdown(f"**Severity:** {report.severity}")
+                st.markdown(f"**Root Cause:** {report.root_cause}")
+                
+                # Impact Summary
+                st.markdown("### Impact")
+                impact_col1, impact_col2 = st.columns(2)
+                with impact_col1:
+                    st.markdown("**Services Affected:**")
+                    for service in report.services_affected:
+                        st.markdown(f"- {service}")
+                with impact_col2:
+                    st.markdown(f"**SLA Breached:** {'Yes 🔴' if report.sla_breached else 'No 🟢'}")
+                    st.markdown(f"**Detection Method:** {report.detection_method}")
+            
+            with report_tabs[1]:
+                # Timeline
+                st.markdown("### Incident Timeline")
+                
+                timeline_df = pd.DataFrame(report.timeline)
+                if not timeline_df.empty:
+                    # Create timeline visualization
+                    fig = go.Figure()
+                    
+                    for i, event in enumerate(report.timeline):
+                        color = 'red' if event.get('severity') == 'critical' else 'orange' if event.get('severity') == 'warning' else 'blue'
+                        fig.add_trace(go.Scatter(
+                            x=[event['time']],
+                            y=[i],
+                            mode='markers+text',
+                            marker=dict(size=12, color=color),
+                            text=event['event'],
+                            textposition="top center",
+                            name=event['event']
+                        ))
+                    
+                    fig.update_layout(
+                        title="Incident Timeline",
+                        xaxis_title="Time",
+                        yaxis_title="Events",
+                        showlegend=False,
+                        height=400
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Timeline table
+                    st.dataframe(timeline_df, use_container_width=True)
+            
+            with report_tabs[2]:
+                # Root Cause Analysis
+                st.markdown("### Root Cause Analysis")
+                st.error(f"🔍 **Root Cause:** {report.root_cause}")
+                
+                st.markdown("### Contributing Factors")
+                for factor in report.contributing_factors:
+                    st.warning(f"• {factor}")
+                
+                # What went well/wrong
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("### ✅ What Went Well")
+                    for item in report.what_went_well:
+                        st.success(f"• {item}")
+                
+                with col2:
+                    st.markdown("### ❌ What Went Wrong")
+                    for item in report.what_went_wrong:
+                        st.error(f"• {item}")
+                
+                # Lessons Learned
+                st.markdown("### 💡 Lessons Learned")
+                for lesson in report.lessons_learned:
+                    st.info(f"• {lesson}")
+            
+            with report_tabs[3]:
+                # Action Items
+                st.markdown("### Action Items")
+                
+                action_df = pd.DataFrame(report.action_items)
+                if not action_df.empty:
+                    # Add status indicators
+                    def style_priority(val):
+                        color = 'red' if val == 'HIGH' else 'orange' if val == 'MEDIUM' else 'green'
+                        return f'color: {color}'
+                    
+                    styled_df = action_df.style.applymap(style_priority, subset=['priority'])
+                    st.dataframe(styled_df, use_container_width=True)
+                    
+                    # Action item details
+                    st.markdown("### Preventive Measures")
+                    for measure in report.preventive_measures:
+                        st.markdown(f"• 🛡️ {measure}")
+                    
+                    st.markdown("### Monitoring Improvements")
+                    for improvement in report.monitoring_improvements:
+                        st.markdown(f"• 📊 {improvement}")
+            
+            with report_tabs[4]:
+                # Metrics and Data
+                st.markdown("### Performance Metrics")
+                
+                # Create sample metrics visualization
+                if 'raw_data' in st.session_state.get('incident_data', {}):
+                    metrics_data = st.session_state.incident_data.get('raw_data', {}).get('metrics', {})
+                    
+                    for metric_name, datapoints in metrics_data.items():
+                        if datapoints:
+                            df = pd.DataFrame(datapoints)
+                            fig = px.line(df, x='Timestamp', y='Maximum', title=metric_name)
+                            st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No metrics data available for this incident")
+        else:
+            st.info("No post-mortem report generated yet. Use the 'Generate Report' tab to create one.")
+
+    def _render_opsitem_postmortem(self):
+        """Render OpsItem-based post-mortem analysis"""
+        st.subheader("Analyze OpsItem for Post-Mortem")
+        
+        st.info("Select an OpsItem to generate a post-mortem report based on actual incident data")
+        
+        # Get OpsItems
+        try:
+            ssm = boto3.client('ssm')
+            response = ssm.describe_ops_items(
+                OpsItemFilters=[
+                    {
+                        'Key': 'Status',
+                        'Values': ['Resolved', 'Closed'],
+                        'Operator': 'Equal'
+                    }
+                ],
+                MaxResults=10
+            )
+            
+            ops_items = response.get('OpsItemSummaries', [])
+            
+            if ops_items:
+                # Display OpsItems
+                ops_item_options = [f"{item['OpsItemId']}: {item.get('Title', 'No Title')}" for item in ops_items]
+                selected_ops_item = st.selectbox("Select OpsItem", ops_item_options)
+                
+                if st.button("🔍 Analyze OpsItem", type="primary"):
+                    ops_item_id = selected_ops_item.split(':')[0]
+                    
+                    with st.spinner(f"Analyzing OpsItem {ops_item_id}..."):
+                        # Get full OpsItem details
+                        ops_item_response = ssm.get_ops_item(OpsItemId=ops_item_id)
+                        ops_item = ops_item_response['OpsItem']
+                        
+                        # Convert OpsItem to incident data format
+                        incident_data = {
+                            'incident_id': ops_item_id,
+                            'type': 'operational',  # Default type
+                            'severity': ops_item.get('Severity', 'MEDIUM'),
+                            'description': ops_item.get('Description', 'No description available'),
+                            'start_time': ops_item.get('CreatedTime', datetime.now()),
+                            'resolution_time': ops_item.get('LastModifiedTime', datetime.now()).isoformat(),
+                            'service': ops_item.get('Source', 'Unknown'),
+                            'operational_data': ops_item.get('OperationalData', {})
+                        }
+                        
+                        # Generate post-mortem
+                        agent = PostMortemAgent()
+                        report = agent.analyze_incident(incident_data)
+                        markdown_report = agent.generate_markdown_report(report)
+                        
+                        # Store in session state
+                        st.session_state.postmortem_report = report
+                        st.session_state.postmortem_markdown = markdown_report
+                        
+                        st.success(f"✅ Post-mortem report generated for {ops_item_id}")
+                        
+                        # Show report
+                        with st.expander("📄 Generated Report", expanded=True):
+                            st.markdown(markdown_report)
+            else:
+                st.warning("No resolved OpsItems found. Resolve some incidents first.")
+                
+        except Exception as e:
+            st.error(f"Error fetching OpsItems: {str(e)}")
+            
+            # Provide sample OpsItem analysis
+            if st.button("🧪 Try Sample OpsItem Analysis"):
+                sample_incident = {
+                    'incident_id': 'OPS-SAMPLE-001',
+                    'type': 'outage',
+                    'severity': 'HIGH',
+                    'description': 'Sample database outage affecting production services',
+                    'start_time': datetime.now() - timedelta(hours=2),
+                    'resolution_time': datetime.now().isoformat(),
+                    'service': 'database-cluster'
+                }
+                
+                agent = PostMortemAgent()
+                report = agent.analyze_incident(sample_incident)
+                markdown_report = agent.generate_markdown_report(report)
+                
+                st.session_state.postmortem_report = report
+                st.session_state.postmortem_markdown = markdown_report
+                
+                st.success("✅ Sample post-mortem report generated")
+                st.markdown(markdown_report)
+    
+    def render_ip_masking(self):
+        """Render the IP Masking tab"""
+        st.header("🔐 IP Masking")
+        
+        st.markdown("""
+        Protect sensitive IP addresses in logs and data displays by applying intelligent masking.
+        This feature helps maintain privacy while preserving log analysis capabilities.
+        """)
+        
+        if not IP_MASKING_AVAILABLE:
+            st.error("IP Masking utility not available. Please check installation.")
+            return
+        
+        # IP Masking options
+        masking_tabs = st.tabs(["🔒 Mask Logs", "⚙️ Configuration", "📊 Statistics"])
+        
+        with masking_tabs[0]:
+            self._render_ip_masking_tool()
+        
+        with masking_tabs[1]:
+            self._render_ip_masking_config()
+            
+        with masking_tabs[2]:
+            self._render_ip_masking_stats()
+    
+    def _render_ip_masking_tool(self):
+        """Render IP masking tool interface"""
+        st.subheader("Mask IP Addresses in Logs")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Input options
+            input_method = st.radio(
+                "Input Method",
+                ["Text Input", "File Upload", "CloudWatch Logs"],
+                key=key_manager.get_unique_key("ip_mask_input", "radio")
+            )
+            
+            if input_method == "Text Input":
+                log_text = st.text_area(
+                    "Enter log text containing IP addresses",
+                    height=200,
+                    placeholder="Paste your logs here...",
+                    key=key_manager.get_unique_key("ip_mask_text", "textarea")
+                )
+            elif input_method == "File Upload":
+                uploaded_file = st.file_uploader(
+                    "Upload log file",
+                    type=['txt', 'log', 'json'],
+                    key=key_manager.get_unique_key("ip_mask_upload", "file")
+                )
+                if uploaded_file:
+                    log_text = uploaded_file.read().decode('utf-8')
+                else:
+                    log_text = ""
+            else:  # CloudWatch Logs
+                log_group = st.text_input(
+                    "Log Group Name",
+                    placeholder="/aws/lambda/my-function",
+                    key=key_manager.get_unique_key("ip_mask_loggroup", "text")
+                )
+                log_text = ""
+        
+        with col2:
+            # Masking options
+            st.markdown("### Masking Options")
+            
+            masking_mode = st.selectbox(
+                "Masking Mode",
+                ["Partial (keep first octet)", "Full (complete masking)", "Hash-based (consistent)"],
+                key=key_manager.get_unique_key("ip_mask_mode", "select")
+            )
+            
+            preserve_internal = st.checkbox(
+                "Preserve internal IPs (10.x, 172.16-31.x, 192.168.x)",
+                value=True,
+                key=key_manager.get_unique_key("ip_mask_internal", "checkbox")
+            )
+            
+            include_ipv6 = st.checkbox(
+                "Include IPv6 addresses",
+                value=True,
+                key=key_manager.get_unique_key("ip_mask_ipv6", "checkbox")
+            )
+        
+        if st.button("🔒 Apply IP Masking", type="primary", key=key_manager.get_unique_key("apply_ip_mask", "button")):
+            if log_text:
+                with st.spinner("Masking IP addresses..."):
+                    try:
+                        masker = IPMasker(
+                            mask_type=masking_mode.split()[0].lower()
+                        )
+                        
+                        masked_text = masker.mask_text(log_text)
+                        
+                        # Display results
+                        st.success("✅ IP addresses masked successfully")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown("### Original (Sample)")
+                            st.code(log_text[:500] + "..." if len(log_text) > 500 else log_text)
+                        
+                        with col2:
+                            st.markdown("### Masked")
+                            st.code(masked_text[:500] + "..." if len(masked_text) > 500 else masked_text)
+                        
+                        # Statistics
+                        stats = masker.get_statistics()
+                        st.markdown("### Masking Statistics")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Total IPs Found", stats.get('total_ips', 0))
+                        with col2:
+                            st.metric("IPv4 Addresses", stats.get('ipv4_count', 0))
+                        with col3:
+                            st.metric("IPv6 Addresses", stats.get('ipv6_count', 0))
+                        
+                        # Download option
+                        st.download_button(
+                            label="📥 Download Masked Logs",
+                            data=masked_text,
+                            file_name=f"masked_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain",
+                            key=key_manager.get_unique_key("download_masked", "button")
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"Error masking IPs: {str(e)}")
+            else:
+                st.warning("Please provide log text to mask")
+    
+    def _render_ip_masking_config(self):
+        """Render IP masking configuration"""
+        st.subheader("IP Masking Configuration")
+        
+        # Configuration form
+        with st.form("ip_mask_config"):
+            st.markdown("### Default Settings")
+            
+            default_mode = st.selectbox(
+                "Default Masking Mode",
+                ["Partial", "Full", "Hash-based"],
+                index=0
+            )
+            
+            st.markdown("### IP Whitelist")
+            whitelist = st.text_area(
+                "Whitelisted IPs (one per line)",
+                placeholder="192.168.1.1\n10.0.0.1",
+                help="These IPs will never be masked"
+            )
+            
+            st.markdown("### Custom Patterns")
+            custom_patterns = st.text_area(
+                "Additional patterns to mask (regex)",
+                placeholder="\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+",
+                help="Custom regex patterns for special IP formats"
+            )
+            
+            if st.form_submit_button("💾 Save Configuration"):
+                # Save configuration
+                config = {
+                    'default_mode': default_mode.lower(),
+                    'whitelist': [ip.strip() for ip in whitelist.split('\n') if ip.strip()],
+                    'custom_patterns': [p.strip() for p in custom_patterns.split('\n') if p.strip()]
+                }
+                st.success("✅ Configuration saved successfully")
+                st.json(config)
+    
+    def _render_ip_masking_stats(self):
+        """Render IP masking statistics"""
+        st.subheader("IP Masking Statistics")
+        
+        # Mock statistics for demonstration
+        stats_data = {
+            'total_masked': 15234,
+            'ipv4_masked': 12856,
+            'ipv6_masked': 2378,
+            'logs_processed': 847,
+            'avg_ips_per_log': 18
+        }
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.metric("Total IPs Masked", f"{stats_data['total_masked']:,}")
+        with col2:
+            st.metric("IPv4 Addresses", f"{stats_data['ipv4_masked']:,}")
+        with col3:
+            st.metric("IPv6 Addresses", f"{stats_data['ipv6_masked']:,}")
+        with col4:
+            st.metric("Logs Processed", stats_data['logs_processed'])
+        with col5:
+            st.metric("Avg IPs/Log", stats_data['avg_ips_per_log'])
+        
+        # Masking trends chart
+        st.markdown("### Masking Activity Trends")
+        dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
+        trends_df = pd.DataFrame({
+            'Date': dates,
+            'IPs Masked': [random.randint(400, 600) for _ in range(30)],
+            'Logs Processed': [random.randint(20, 40) for _ in range(30)]
+        })
+        
+        fig = px.line(trends_df, x='Date', y='IPs Masked', 
+                      title='Daily IP Masking Activity',
+                      markers=True)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    def render_test_scenarios(self):
+        """Render the Test Scenarios tab"""
+        st.header("🧪 Test Scenarios")
+        
+        st.markdown("""
+        Generate realistic test incidents to validate the SRE Copilot's root cause analysis capabilities.
+        Choose from predefined scenarios or create custom ones.
+        """)
+        
+        scenario_tabs = st.tabs(["📋 Predefined Scenarios", "✏️ Custom Scenario", "🔄 Batch Testing"])
+        
+        with scenario_tabs[0]:
+            self._render_predefined_scenarios()
+        
+        with scenario_tabs[1]:
+            self._render_custom_scenario()
+            
+        with scenario_tabs[2]:
+            self._render_batch_testing()
+    
+    def _render_predefined_scenarios(self):
+        """Render predefined test scenarios"""
+        st.subheader("Predefined Test Scenarios")
+        
+        # Scenario categories
+        category = st.selectbox(
+            "Select Scenario Category",
+            ["Performance Issues", "Security Incidents", "Service Outages", 
+             "Data Issues", "Infrastructure Failures", "Change-Related", "Defect-Related"],
+            key=key_manager.get_unique_key("scenario_category", "select")
+        )
+        
+        # Predefined scenarios based on category
+        scenarios = {
+            "Performance Issues": [
+                {
+                    "name": "Database Slow Query Crisis",
+                    "description": "Multiple slow queries causing application timeouts",
+                    "severity": "high",
+                    "components": ["RDS", "Application", "API Gateway"]
+                },
+                {
+                    "name": "Memory Leak in Production",
+                    "description": "Gradual memory exhaustion in EC2 instances",
+                    "severity": "critical",
+                    "components": ["EC2", "Application", "CloudWatch"]
+                }
+            ],
+            "Security Incidents": [
+                {
+                    "name": "Suspicious API Access Pattern",
+                    "description": "Unusual API call patterns detected",
+                    "severity": "high",
+                    "components": ["API Gateway", "WAF", "CloudTrail"]
+                },
+                {
+                    "name": "Failed Authentication Spike",
+                    "description": "Mass authentication failures from multiple IPs",
+                    "severity": "critical",
+                    "components": ["Cognito", "CloudTrail", "WAF"]
+                }
+            ],
+            "Service Outages": [
+                {
+                    "name": "Complete Service Unavailability",
+                    "description": "Main application endpoint returning 503 errors",
+                    "severity": "critical",
+                    "components": ["ALB", "ECS", "Route53"]
+                },
+                {
+                    "name": "Regional Service Degradation",
+                    "description": "Intermittent failures in us-east-1",
+                    "severity": "high",
+                    "components": ["Multi-Region", "CloudFront", "S3"]
+                }
+            ]
+        }
+        
+        # Display available scenarios
+        if category in scenarios:
+            for idx, scenario in enumerate(scenarios[category]):
+                with st.expander(f"{scenario['name']} - {scenario['severity'].upper()}"):
+                    st.markdown(f"**Description:** {scenario['description']}")
+                    st.markdown(f"**Components:** {', '.join(scenario['components'])}")
+                    
+                    col1, col2 = st.columns([3, 1])
+                    with col2:
+                        if st.button(
+                            "🚀 Generate Incident",
+                            key=key_manager.get_unique_key(f"gen_scenario_{category}_{idx}", "button")
+                        ):
+                            with st.spinner("Generating test incident..."):
+                                # Generate the incident
+                                incident = self._generate_test_incident(scenario, category)
+                                
+                                if incident:
+                                    st.success(f"✅ Test incident generated: {incident['incident_id']}")
+                                    
+                                    # Store in session state for analysis
+                                    st.session_state.current_incident = incident
+                                    st.session_state.incident_generated = True
+                                    
+                                    # Show quick actions
+                                    col1, col2, col3 = st.columns(3)
+                                    with col1:
+                                        if st.button("🔍 Analyze Now", key=key_manager.get_unique_key("analyze_now", "button")):
+                                            st.session_state.show_analysis_results = True
+                                            st.experimental_rerun()
+                                    with col2:
+                                        st.button("📋 View Details", key=key_manager.get_unique_key("view_details", "button"))
+                                    with col3:
+                                        st.button("📊 Generate Report", key=key_manager.get_unique_key("gen_report", "button"))
+    
+    def _render_custom_scenario(self):
+        """Render custom scenario creator"""
+        st.subheader("Create Custom Test Scenario")
+        
+        with st.form("custom_scenario"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                scenario_name = st.text_input(
+                    "Scenario Name",
+                    placeholder="e.g., API Rate Limit Breach"
+                )
+                
+                incident_type = st.selectbox(
+                    "Incident Type",
+                    ["performance", "security", "outage", "data_loss", "configuration"]
+                )
+                
+                severity = st.select_slider(
+                    "Severity",
+                    options=["low", "medium", "high", "critical"]
+                )
+                
+                duration = st.slider(
+                    "Duration (minutes)",
+                    min_value=5,
+                    max_value=240,
+                    value=30
+                )
+            
+            with col2:
+                affected_services = st.multiselect(
+                    "Affected Services",
+                    ["EC2", "RDS", "S3", "Lambda", "API Gateway", "ECS", "DynamoDB", "SQS"]
+                )
+                
+                error_rate = st.slider(
+                    "Error Rate (%)",
+                    min_value=0,
+                    max_value=100,
+                    value=25
+                )
+                
+                impact = st.text_area(
+                    "Business Impact",
+                    placeholder="Describe the business impact..."
+                )
+            
+            # Symptoms configuration
+            st.markdown("### Symptoms")
+            symptoms = st.text_area(
+                "Symptoms (one per line)",
+                placeholder="High CPU utilization\nIncreased response times\nError spike in logs"
+            )
+            
+            # Root cause hints
+            st.markdown("### Root Cause Hints (Optional)")
+            root_cause_hints = st.text_area(
+                "Provide hints for expected root cause",
+                placeholder="Database connection pool exhaustion\nMemory leak in application"
+            )
+            
+            if st.form_submit_button("🎯 Create & Generate Incident"):
+                if scenario_name and affected_services:
+                    # Create custom scenario
+                    custom_scenario = {
+                        "name": scenario_name,
+                        "type": incident_type,
+                        "severity": severity,
+                        "duration": duration,
+                        "services": affected_services,
+                        "error_rate": error_rate,
+                        "impact": impact,
+                        "symptoms": [s.strip() for s in symptoms.split('\n') if s.strip()],
+                        "root_cause_hints": [h.strip() for h in root_cause_hints.split('\n') if h.strip()]
+                    }
+                    
+                    # Generate incident from custom scenario
+                    incident = self._generate_custom_incident(custom_scenario)
+                    
+                    if incident:
+                        st.success(f"✅ Custom incident generated: {incident['incident_id']}")
+                        st.session_state.current_incident = incident
+                        st.session_state.incident_generated = True
+                else:
+                    st.error("Please provide scenario name and select affected services")
+    
+    def _render_batch_testing(self):
+        """Render batch testing interface"""
+        st.subheader("Batch Testing")
+        
+        st.markdown("""
+        Run multiple test scenarios in batch to validate the system's performance and accuracy.
+        """)
+        
+        # Batch configuration
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            batch_size = st.number_input(
+                "Number of Incidents",
+                min_value=1,
+                max_value=50,
+                value=10
+            )
+            
+            scenario_mix = st.multiselect(
+                "Scenario Types",
+                ["Performance", "Security", "Outage", "Data", "Infrastructure"],
+                default=["Performance", "Security", "Outage"]
+            )
+        
+        with col2:
+            parallel_execution = st.checkbox(
+                "Parallel Execution",
+                value=False,
+                help="Run scenarios in parallel (faster but more resource intensive)"
+            )
+            
+            generate_report = st.checkbox(
+                "Generate Summary Report",
+                value=True
+            )
+        
+        if st.button("🚀 Start Batch Test", type="primary", key=key_manager.get_unique_key("start_batch", "button")):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            results_container = st.container()
+            
+            with st.spinner("Running batch tests..."):
+                results = []
+                
+                for i in range(batch_size):
+                    progress = (i + 1) / batch_size
+                    progress_bar.progress(progress)
+                    status_text.text(f"Processing incident {i+1}/{batch_size}")
+                    
+                    # Generate random scenario from selected types
+                    scenario_type = random.choice(scenario_mix)
+                    
+                    # Simulate incident generation and analysis
+                    result = {
+                        "incident_id": f"BATCH-{datetime.now().strftime('%Y%m%d')}-{i+1:03d}",
+                        "type": scenario_type.lower(),
+                        "severity": random.choice(["low", "medium", "high", "critical"]),
+                        "analysis_time": random.uniform(1.5, 4.5),
+                        "root_cause_found": random.random() > 0.1,
+                        "confidence": random.uniform(0.75, 0.98)
+                    }
+                    results.append(result)
+                    
+                    time.sleep(0.5)  # Simulate processing time
+                
+                progress_bar.progress(1.0)
+                status_text.text("Batch test completed!")
+                
+                # Display results
+                with results_container:
+                    st.markdown("### Batch Test Results")
+                    
+                    # Summary metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Incidents", len(results))
+                    with col2:
+                        success_rate = sum(1 for r in results if r['root_cause_found']) / len(results) * 100
+                        st.metric("Success Rate", f"{success_rate:.1f}%")
+                    with col3:
+                        avg_time = sum(r['analysis_time'] for r in results) / len(results)
+                        st.metric("Avg Analysis Time", f"{avg_time:.1f}s")
+                    with col4:
+                        avg_confidence = sum(r['confidence'] for r in results) / len(results)
+                        st.metric("Avg Confidence", f"{avg_confidence:.2f}")
+                    
+                    # Detailed results table
+                    results_df = pd.DataFrame(results)
+                    st.dataframe(results_df, use_container_width=True)
+                    
+                    if generate_report:
+                        # Generate downloadable report
+                        report = self._generate_batch_report(results)
+                        st.download_button(
+                            label="📥 Download Batch Test Report",
+                            data=report,
+                            file_name=f"batch_test_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json",
+                            key=key_manager.get_unique_key("download_batch_report", "button")
+                        )
+    
+    def _generate_test_incident(self, scenario, category):
+        """Generate a test incident from a predefined scenario"""
+        try:
+            incident = {
+                "incident_id": f"TEST-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "title": scenario['name'],
+                "description": scenario['description'],
+                "severity": scenario['severity'],
+                "category": category,
+                "components": scenario['components'],
+                "start_time": datetime.now().isoformat(),
+                "status": "active",
+                "test_scenario": True
+            }
+            
+            # Add category-specific attributes
+            if category == "Performance Issues":
+                incident.update({
+                    "metrics": {
+                        "response_time": random.uniform(2.5, 8.0),
+                        "error_rate": random.uniform(5, 25),
+                        "cpu_usage": random.uniform(70, 95)
+                    }
+                })
+            elif category == "Security Incidents":
+                incident.update({
+                    "security_details": {
+                        "source_ips": [f"192.168.{random.randint(1,255)}.{random.randint(1,255)}" for _ in range(5)],
+                        "attack_type": random.choice(["brute_force", "ddos", "injection"]),
+                        "blocked_requests": random.randint(100, 10000)
+                    }
+                })
+            
+            return incident
+            
+        except Exception as e:
+            st.error(f"Error generating test incident: {str(e)}")
+            return None
+    
+    def _generate_custom_incident(self, scenario):
+        """Generate incident from custom scenario"""
+        try:
+            incident = {
+                "incident_id": f"CUSTOM-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "title": scenario['name'],
+                "type": scenario['type'],
+                "severity": scenario['severity'],
+                "duration_minutes": scenario['duration'],
+                "affected_services": scenario['services'],
+                "error_rate": scenario['error_rate'],
+                "business_impact": scenario['impact'],
+                "symptoms": scenario['symptoms'],
+                "root_cause_hints": scenario.get('root_cause_hints', []),
+                "start_time": datetime.now().isoformat(),
+                "status": "active",
+                "custom_scenario": True
+            }
+            
+            return incident
+            
+        except Exception as e:
+            st.error(f"Error generating custom incident: {str(e)}")
+            return None
+    
+    def _generate_batch_report(self, results):
+        """Generate a comprehensive batch test report"""
+        report = {
+            "test_run_id": f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "execution_time": datetime.now().isoformat(),
+            "summary": {
+                "total_incidents": len(results),
+                "success_rate": sum(1 for r in results if r['root_cause_found']) / len(results) * 100,
+                "avg_analysis_time": sum(r['analysis_time'] for r in results) / len(results),
+                "avg_confidence": sum(r['confidence'] for r in results) / len(results)
+            },
+            "type_distribution": {},
+            "severity_distribution": {},
+            "detailed_results": results
+        }
+        
+        # Calculate distributions
+        for result in results:
+            incident_type = result['type']
+            severity = result['severity']
+            
+            report['type_distribution'][incident_type] = report['type_distribution'].get(incident_type, 0) + 1
+            report['severity_distribution'][severity] = report['severity_distribution'].get(severity, 0) + 1
+        
+        return json.dumps(report, indent=2)
 
 def main():
     """Main application entry point."""

@@ -1,0 +1,108 @@
+{
+  "incident_id": "DEMO-001",
+  "title": "Payment Processing System Outage",
+  "severity": "CRITICAL",
+  "incident_start": "2025-08-12T16:04:54.363065",
+  "incident_end": "2025-08-12T18:34:54.363086",
+  "detection_time": "2025-08-12T16:04:54.363065",
+  "resolution_time": "2025-08-12T18:34:54.363086",
+  "duration_minutes": 150,
+  "services_affected": [
+    "payment-gateway"
+  ],
+  "users_impacted": 10000,
+  "revenue_impact": "$50,000",
+  "sla_breached": true,
+  "timeline": [
+    {
+      "time": "2025-08-12T16:04:54.363065",
+      "event": "Incident started",
+      "severity": "critical"
+    },
+    {
+      "time": "2025-08-12T18:34:54.363086",
+      "event": "Incident resolved",
+      "severity": "info"
+    }
+  ],
+  "root_cause": "The root cause of the complete payment processing system outage was a critical failure in the primary database server. The database server encountered a hardware failure, causing a complete loss of the database and rendering the payment processing system inoperable.",
+  "contributing_factors": [
+    "Lack of redundancy and failover mechanisms in the database infrastructure",
+    "Absence of comprehensive disaster recovery and business continuity plans",
+    "Insufficient monitoring and alerting systems to detect and respond to system failures in a timely manner"
+  ],
+  "detection_method": "The outage was detected through customer reports and internal monitoring systems that reported the complete unavailability of the payment processing system.",
+  "response_actions": [
+    "Immediately initiated incident response procedures and assembled a cross-functional team to diagnose and address the issue",
+    "Attempted to restore the database from the latest backup, but the backup was found to be corrupted and unusable"
+  ],
+  "what_went_well": [
+    "The incident response team was able to quickly identify the root cause of the outage",
+    "Communication with customers was timely and transparent, providing regular updates on the status of the incident",
+    "The organization's IT infrastructure team demonstrated a high level of technical expertise and dedication in their efforts to restore the system"
+  ],
+  "what_went_wrong": [
+    "The lack of redundancy and failover mechanisms in the database infrastructure led to a complete system failure",
+    "The backup and disaster recovery plans were inadequate, as the backup data was found to be corrupted and unusable",
+    "There were delays in restoring the system due to the complexity of the issue and the need to rebuild the database from scratch"
+  ],
+  "lessons_learned": [
+    "The importance of building a robust and resilient infrastructure with redundancy and failover mechanisms to ensure high availability",
+    "The need for comprehensive disaster recovery and business continuity plans that are regularly tested and updated",
+    "The necessity of implementing effective monitoring and alerting systems to detect and respond to system failures in a timely manner"
+  ],
+  "action_items": [
+    {
+      "id": "AI-1",
+      "title": "Implement a highly available and fault-tolerant database architecture, with redundant servers and automatic failover capabilities",
+      "priority": "HIGH",
+      "assigned_to": "SRE Team",
+      "due_date": "2025-08-19T18:35:01.705791",
+      "status": "TODO"
+    },
+    {
+      "id": "AI-2",
+      "title": "Develop and regularly test comprehensive disaster recovery and business continuity plans, ensuring the integrity and recoverability of backup data",
+      "priority": "MEDIUM",
+      "assigned_to": "SRE Team",
+      "due_date": "2025-08-26T18:35:01.705815",
+      "status": "TODO"
+    },
+    {
+      "id": "AI-3",
+      "title": "Enhance the monitoring and alerting systems to provide real-time visibility into the health and performance of the payment processing system, with proactive notification of any issues",
+      "priority": "MEDIUM",
+      "assigned_to": "SRE Team",
+      "due_date": "2025-09-02T18:35:01.705819",
+      "status": "TODO"
+    },
+    {
+      "id": "AI-4",
+      "title": "Monitoring: Implement a centralized monitoring and alerting platform to consolidate and analyze system metrics and logs across all components of the payment processing infrastructure",
+      "priority": "MEDIUM",
+      "assigned_to": "DevOps Team",
+      "due_date": "2025-08-26T18:35:01.705824",
+      "status": "TODO"
+    },
+    {
+      "id": "AI-5",
+      "title": "Monitoring: Establish robust incident response and escalation procedures, ensuring prompt and effective communication and coordination among cross-functional teams during outages",
+      "priority": "MEDIUM",
+      "assigned_to": "DevOps Team",
+      "due_date": "2025-08-26T18:35:01.705827",
+      "status": "TODO"
+    }
+  ],
+  "preventive_measures": [
+    "Implement a highly available and fault-tolerant database architecture, with redundant servers and automatic failover capabilities",
+    "Develop and regularly test comprehensive disaster recovery and business continuity plans, ensuring the integrity and recoverability of backup data",
+    "Enhance the monitoring and alerting systems to provide real-time visibility into the health and performance of the payment processing system, with proactive notification of any issues"
+  ],
+  "monitoring_improvements": [
+    "Implement a centralized monitoring and alerting platform to consolidate and analyze system metrics and logs across all components of the payment processing infrastructure",
+    "Establish robust incident response and escalation procedures, ensuring prompt and effective communication and coordination among cross-functional teams during outages"
+  ],
+  "generated_at": "2025-08-12T18:35:01.705884",
+  "generated_by": "SRE Copilot Post-Mortem Agent",
+  "ai_confidence_score": 0.85
+}
