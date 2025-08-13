@@ -3,6 +3,26 @@ import logging
 import boto3
 from datetime import datetime, timedelta
 import time
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Import IP masking utility
+try:
+    from utils.ip_masker import IPMasker, mask_logs_for_llm
+except ImportError:
+    # Fallback if module not found - define inline
+    class IPMasker:
+        def __init__(self, mask_type="partial"):
+            self.mask_type = mask_type
+        def mask_text(self, text):
+            return text, {}
+        def mask_log_entries(self, entries):
+            return entries
+    def mask_logs_for_llm(logs, mask_type="partial"):
+        return logs
 
 # Configure logging
 logger = logging.getLogger()
@@ -65,8 +85,8 @@ def get_demo_metrics(namespace='SREDemo/Application', start_time=None, end_time=
             
     return metrics_data
 
-def get_demo_logs(log_group='/aws/demo/sre-incident-generator', start_time=None, end_time=None):
-    """Get logs from our demo log group."""
+def get_demo_logs(log_group='/aws/demo/sre-incident-generator', start_time=None, end_time=None, mask_ips=True):
+    """Get logs from our demo log group with optional IP masking."""
     if not end_time:
         end_time = datetime.utcnow()
     if not start_time:
@@ -76,8 +96,14 @@ def get_demo_logs(log_group='/aws/demo/sre-incident-generator', start_time=None,
         'error_count': 0,
         'warning_count': 0,
         'error_messages': [],
-        'recent_events': []
+        'recent_events': [],
+        'original_events': [],  # Store original unmasked events
+        'ip_masking_applied': mask_ips,
+        'masked_ip_count': 0
     }
+    
+    # Initialize IP masker
+    masker = IPMasker(mask_type="partial") if mask_ips else None
     
     try:
         # Get log streams
@@ -100,6 +126,22 @@ def get_demo_logs(log_group='/aws/demo/sre-incident-generator', start_time=None,
             for event in events.get('events', []):
                 try:
                     msg = json.loads(event['message'])
+                    
+                    # Store original event
+                    log_data['original_events'].append(msg.copy())
+                    
+                    # Apply IP masking if enabled
+                    if mask_ips and masker:
+                        # Mask the entire message object
+                        msg = masker.mask_json(msg)
+                        
+                        # Mask error messages specifically
+                        if 'message' in msg:
+                            masked_text, ip_map = masker.mask_text(msg['message'])
+                            if ip_map:
+                                log_data['masked_ip_count'] += len(ip_map)
+                            msg['message'] = masked_text
+                    
                     log_data['recent_events'].append(msg)
                     
                     if msg.get('level') == 'ERROR' or msg.get('level') == 'FATAL':
@@ -112,6 +154,10 @@ def get_demo_logs(log_group='/aws/demo/sre-incident-generator', start_time=None,
                     
     except Exception as e:
         logger.warning(f"Could not get logs: {str(e)}")
+        
+    # Add masking statistics
+    if mask_ips and masker:
+        log_data['masking_stats'] = masker.get_masking_stats()
         
     return log_data
 
@@ -426,6 +472,7 @@ def lambda_handler(event, context):
         environment = event.get('environment', 'unknown')
         additional_context = event.get('additional_context', {})
         enable_kb = event.get('enable_kb', True)  # Enable KB by default
+        mask_ips = event.get('mask_ips', True)  # Enable IP masking by default
         
         # Determine incident type
         incident_type = analyze_incident_type(incident_description)
@@ -436,8 +483,8 @@ def lambda_handler(event, context):
         metrics_data = get_demo_metrics()
         
         # Get actual logs from our demo log group
-        logger.info("Gathering demo logs...")
-        log_data = get_demo_logs()
+        logger.info(f"Gathering demo logs (IP masking: {mask_ips})...")
+        log_data = get_demo_logs(mask_ips=mask_ips)
         
         # Get knowledge base context if enabled
         kb_context = {}
@@ -468,14 +515,21 @@ def lambda_handler(event, context):
                 'logs': {
                     'error_count': log_data['error_count'],
                     'warning_count': log_data['warning_count'],
-                    'sample_errors': log_data['error_messages'][:3]
+                    'sample_errors': log_data['error_messages'][:3],
+                    'ip_masking_applied': log_data.get('ip_masking_applied', False),
+                    'masked_ip_count': log_data.get('masked_ip_count', 0),
+                    'masking_stats': log_data.get('masking_stats', {})
                 }
             },
             'metadata': {
                 'analysis_time': datetime.utcnow().isoformat(),
                 'service': service,
                 'environment': environment,
-                'ops_item_id': additional_context.get('ops_item_id')
+                'ops_item_id': additional_context.get('ops_item_id'),
+                'security': {
+                    'ip_masking_enabled': mask_ips,
+                    'masked_ip_count': log_data.get('masked_ip_count', 0)
+                }
             }
         }
         
