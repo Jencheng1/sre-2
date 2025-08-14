@@ -1386,10 +1386,11 @@ class EnhancedSREDashboard:
                 with col3:
                     if IP_MASKING_AVAILABLE:
                         # Toggle for showing masked/unmasked logs
-                        show_masked = st.toggle(
+                        show_masked = st.checkbox(
                             "🔒 Show IP Masking", 
                             value=True,
-                            help="Toggle to show logs with IP addresses masked for security"
+                            help="Toggle to show logs with IP addresses masked for security",
+                            key=key_manager.get_unique_key("show_ip_masking", incident.get('ops_item_id', 'default'))
                         )
                     else:
                         show_masked = False
@@ -1714,7 +1715,7 @@ class EnhancedSREDashboard:
         st.header("📚 SRE Knowledge Base")
         
         # Knowledge base tabs
-        kb_tabs = st.tabs(["🔍 Search", "📖 Browse", "➕ Add Document", "🧪 Test Analysis"])
+        kb_tabs = st.tabs(["🔍 Search", "📖 Browse", "➕ Add Document", "🧪 Test Analysis", "🌐 External Sources"])
         
         with kb_tabs[0]:
             self.render_kb_search()
@@ -1727,6 +1728,9 @@ class EnhancedSREDashboard:
             
         with kb_tabs[3]:
             self.render_kb_test_analysis()
+            
+        with kb_tabs[4]:
+            self.render_kb_external_sources()
             
     def get_recent_incidents_for_dropdown(self):
         """Get recent incidents for the dropdown selection."""
@@ -2559,6 +2563,11 @@ class EnhancedSREDashboard:
                 st.session_state.kb_add_result = None
         else:
             st.error(f"❌ Failed to add document: {result_data.get('error', 'Unknown error')}")
+    
+    def render_kb_external_sources(self):
+        """Render external knowledge base sources."""
+        from kb_external_sources import render_kb_external_sources
+        render_kb_external_sources(self)
                 
     def render_recent_changes(self):
         """Render recent changes tab."""
@@ -3285,7 +3294,8 @@ class EnhancedSREDashboard:
         try:
             response = requests.get(f"http://localhost:{mcp_ports['jira']}/jira/issues", timeout=2)
             status['jira'] = {'online': response.status_code == 200, 'issues': len(response.json()) if response.status_code == 200 else 0}
-        except:
+        except Exception as e:
+            st.warning(f"Jira connection error: {str(e)}")
             status['jira'] = {'online': False, 'issues': 0}
         
         # Status indicators
@@ -3325,26 +3335,92 @@ class EnhancedSREDashboard:
         across ALM Octane and Jira systems.
         """)
         
-        with st.form("correlation_analysis_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                incident_title = st.text_input("Incident Title", key="corr_title")
-                severity = st.selectbox("Severity", ["Low", "Medium", "High", "Critical"], index=2, key="corr_severity")
-            
-            with col2:
-                incident_type = st.selectbox("Type", ["Performance", "Outage", "Security", "Network"], key="corr_type")
-                services = st.multiselect("Affected Services", ["API Gateway", "Database", "User Service"], key="corr_services")
-            
-            incident_description = st.text_area("Incident Description", 
-                                              placeholder="Describe symptoms, timeline, and impact...", 
-                                              height=150, key="corr_desc")
-            
-            analyze_submitted = st.form_submit_button("🔍 Analyze Correlations")
+        # Add option to load from incident
+        data_source = st.radio("Data Source:", ["Manual Entry", "Load from Incident"], horizontal=True)
         
-        if analyze_submitted and incident_description:
-            st.markdown("---")
-            self._perform_correlation_analysis(incident_description, incident_title, severity)
+        if data_source == "Load from Incident":
+            # Get recent incidents
+            recent_incidents = self.get_recent_incidents_for_dropdown()
+            
+            if recent_incidents:
+                selected_incident = st.selectbox(
+                    "Select an incident to analyze:",
+                    [""] + [f"{inc['id']} - {inc['title']}" for inc in recent_incidents],
+                    help="Select an incident to auto-populate correlation analysis fields"
+                )
+                
+                if selected_incident and selected_incident != "":
+                    incident_id = selected_incident.split(" - ")[0]
+                    incident = next((inc for inc in recent_incidents if inc['id'] == incident_id), None)
+                    
+                    if incident:
+                        # Display incident info
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.info(f"**Root Cause:** {incident.get('root_cause', 'Unknown')}")
+                        with col2:
+                            st.info(f"**Category:** {incident.get('category', 'Unknown')}")
+                        
+                        # Auto-populate fields from incident
+                        incident_title = incident.get('title', '')
+                        incident_description = incident.get('description', '')
+                        
+                        # Map severity (1-5 to Low/Medium/High/Critical)
+                        severity_map = {'1': 'Critical', '2': 'Critical', '3': 'High', '4': 'Medium', '5': 'Low'}
+                        severity = severity_map.get(str(incident.get('severity', '3')), 'High')
+                        
+                        # Map category to type
+                        category = incident.get('category', 'Unknown').lower()
+                        if 'performance' in category or 'latency' in category:
+                            incident_type = 'Performance'
+                        elif 'security' in category or 'auth' in category:
+                            incident_type = 'Security'
+                        elif 'network' in category or 'connection' in category:
+                            incident_type = 'Network'
+                        else:
+                            incident_type = 'Outage'
+                        
+                        # Extract services from description or use defaults
+                        services = []
+                        if 'api' in incident_description.lower():
+                            services.append('API Gateway')
+                        if 'database' in incident_description.lower() or 'db' in incident_description.lower():
+                            services.append('Database')
+                        if 'user' in incident_description.lower() or 'auth' in incident_description.lower():
+                            services.append('User Service')
+                        
+                        # Analyze button
+                        if st.button("🔍 Analyze Incident Correlations", key="analyze_loaded_incident"):
+                            st.markdown("---")
+                            # Add incident reference to description
+                            enhanced_description = f"{incident_description}\n\n[Related OpsItem: {incident_id}]"
+                            self._perform_correlation_analysis(enhanced_description, incident_title, severity)
+                    else:
+                        st.error("Could not load incident details")
+            else:
+                st.warning("No recent incidents found. Create an incident first.")
+        
+        else:  # Manual Entry
+            with st.form("correlation_analysis_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    incident_title = st.text_input("Incident Title", key="corr_title")
+                    severity = st.selectbox("Severity", ["Low", "Medium", "High", "Critical"], index=2, key="corr_severity")
+                
+                with col2:
+                    incident_type = st.selectbox("Type", ["Performance", "Outage", "Security", "Network"], key="corr_type")
+                    services = st.multiselect("Affected Services", ["API Gateway", "Database", "User Service"], key="corr_services")
+                
+                incident_description = st.text_area("Incident Description", 
+                                                  placeholder="Describe symptoms, timeline, and impact...", 
+                                                  height=150, key="corr_desc")
+                
+                analyze_submitted = st.form_submit_button("🔍 Analyze Correlations")
+            
+            if analyze_submitted and incident_description:
+                st.markdown("---")
+                self._perform_correlation_analysis(incident_description, incident_title, severity)
     
     def render_correlation_scenarios(self):
         """NEW: Render correlation test scenarios tab"""
@@ -3456,13 +3532,27 @@ class EnhancedSREDashboard:
                     if response.status_code == 200:
                         issues = response.json()[:5]
                         for issue in issues:
-                            priority_icon = {"Blocker": "🔴", "Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}.get(issue.get('priority', 'Low'), "⚪")
-                            st.markdown(f"**{priority_icon} {issue.get('key', 'Unknown')}** - {issue.get('status', 'Open')}")
-                            st.caption(issue.get('summary', 'No summary')[:80] + "...")
+                            # Handle priority as either string or dict
+                            priority = issue.get('priority', 'Low')
+                            if isinstance(priority, dict):
+                                priority_name = priority.get('name', 'Low')
+                            else:
+                                priority_name = priority
+                            priority_icon = {"Blocker": "🔴", "Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🟢"}.get(priority_name, "⚪")
+                            
+                            # Handle status similarly
+                            status_val = issue.get('status', 'Open')
+                            if isinstance(status_val, dict):
+                                status_name = status_val.get('name', 'Open')
+                            else:
+                                status_name = status_val
+                            
+                            st.markdown(f"**{priority_icon} {issue.get('key', 'Unknown')}** - {status_name}")
+                            st.caption(issue.get('summary', issue.get('description', 'No summary'))[:80] + "...")
                     else:
-                        st.warning("Could not load issues")
-                except:
-                    st.error("Connection failed")
+                        st.warning(f"Could not load issues (status: {response.status_code})")
+                except Exception as e:
+                    st.error(f"Connection failed: {str(e)}")
             else:
                 st.warning("Jira offline")
     
@@ -3470,48 +3560,196 @@ class EnhancedSREDashboard:
         """Render defect search section"""
         st.subheader("🔍 Search Defects & Issues")
         
-        with st.form("defect_search_form"):
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                search_text = st.text_input("Keywords", key="search_keywords")
-            with col2:
-                severity = st.selectbox("Severity", ["All", "Critical", "High", "Medium", "Low"], key="search_severity")
-            with col3:
-                status_filter = st.selectbox("Status", ["All", "Open", "In Progress", "Resolved"], key="search_status")
-            
-            search_submitted = st.form_submit_button("🔍 Search")
+        # Add incident-based search option
+        search_mode = st.radio("Search by:", ["Keywords", "Incident"], horizontal=True)
         
-        if search_submitted:
-            st.info("Search functionality would query both ALM Octane and Jira")
-            if search_text:
-                st.markdown(f"**Searching for:** {search_text} | **Severity:** {severity} | **Status:** {status_filter}")
+        if search_mode == "Incident":
+            # Get recent incidents for dropdown
+            recent_incidents = self.get_recent_incidents_for_dropdown()
+            
+            if recent_incidents:
+                selected_incident = st.selectbox(
+                    "Select an incident to find related defects:",
+                    [""] + [f"{inc['id']} - {inc['title']}" for inc in recent_incidents],
+                    help="AI will search for defects related to this incident"
+                )
+                
+                if selected_incident and selected_incident != "":
+                    incident_id = selected_incident.split(" - ")[0]
+                    incident = next((inc for inc in recent_incidents if inc['id'] == incident_id), None)
+                    
+                    if incident:
+                        st.info(f"📋 **Incident Details:**\n- Root Cause: {incident.get('root_cause', 'Unknown')}\n- Category: {incident.get('category', 'Unknown')}")
+                        
+                        if st.button("🔍 Find Related Defects", key="search_incident_defects"):
+                            with st.spinner("AI analyzing incident and searching for related defects..."):
+                                # Simulate AI search
+                                time.sleep(1)
+                                st.success("✅ Found 3 related defects")
+                                
+                                # Mock related defects
+                                related_defects = [
+                                    {"key": "ALM-4521", "title": "Database connection pool exhaustion", "match": "87%"},
+                                    {"key": "JIRA-892", "title": "Timeout errors in payment service", "match": "82%"},
+                                    {"key": "ALM-4498", "title": "High latency during peak hours", "match": "75%"}
+                                ]
+                                
+                                for defect in related_defects:
+                                    col1, col2 = st.columns([4, 1])
+                                    with col1:
+                                        st.markdown(f"**{defect['key']}** - {defect['title']}")
+                                    with col2:
+                                        st.metric("Match", defect['match'])
+            else:
+                st.warning("No recent incidents found. Create an incident first.")
+        
+        else:  # Keywords search
+            with st.form("defect_search_form"):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    search_text = st.text_input("Keywords", key="search_keywords")
+                with col2:
+                    severity = st.selectbox("Severity", ["All", "Critical", "High", "Medium", "Low"], key="search_severity")
+                with col3:
+                    status_filter = st.selectbox("Status", ["All", "Open", "In Progress", "Resolved"], key="search_status")
+                
+                search_submitted = st.form_submit_button("🔍 Search")
+            
+            if search_submitted:
+                st.info("Search functionality would query both ALM Octane and Jira")
+                if search_text:
+                    st.markdown(f"**Searching for:** {search_text} | **Severity:** {severity} | **Status:** {status_filter}")
     
     def _render_defect_creation(self):
         """Render defect creation section"""
         st.subheader("➕ Create New Defect")
         
-        with st.form("defect_create_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                title = st.text_input("Title*", key="create_title")
-                severity = st.selectbox("Severity*", ["Low", "Medium", "High", "Critical"], key="create_severity")
-                component = st.text_input("Component", key="create_component")
-            
-            with col2:
-                description = st.text_area("Description*", key="create_description")
-                target = st.selectbox("Create In*", ["ALM Octane", "Jira", "Both"], key="create_target")
-                environment = st.selectbox("Environment", ["Dev", "Test", "Staging", "Prod"], key="create_environment")
-            
-            create_submitted = st.form_submit_button("Create Defect")
+        # Add creation mode selector
+        creation_mode = st.radio("Create from:", ["Manual", "Incident (AI-Powered)"], horizontal=True)
         
-        if create_submitted and title and description:
-            st.success(f"✅ Defect would be created in {target}")
-            if target in ["ALM Octane", "Both"]:
-                st.info(f"ALM Octane ID: ALM-{random.randint(1000, 9999)}")
-            if target in ["Jira", "Both"]:
-                st.info(f"Jira Key: BUG-{random.randint(100, 999)}")
+        if creation_mode == "Incident (AI-Powered)":
+            # Get recent incidents
+            recent_incidents = self.get_recent_incidents_for_dropdown()
+            
+            if recent_incidents:
+                selected_incident = st.selectbox(
+                    "Select an incident to create defect from:",
+                    [""] + [f"{inc['id']} - {inc['title']}" for inc in recent_incidents],
+                    help="AI will analyze the incident and pre-fill defect details"
+                )
+                
+                if selected_incident and selected_incident != "":
+                    incident_id = selected_incident.split(" - ")[0]
+                    incident = next((inc for inc in recent_incidents if inc['id'] == incident_id), None)
+                    
+                    if incident:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.info(f"**Root Cause:** {incident.get('root_cause', 'Unknown')}")
+                        with col2:
+                            st.info(f"**Category:** {incident.get('category', 'Unknown')}")
+                        
+                        if st.button("🤖 Generate Defect with AI", key="generate_defect_ai"):
+                            with st.spinner("AI analyzing incident and generating defect..."):
+                                time.sleep(2)  # Simulate AI processing
+                                
+                                # AI-generated defect details
+                                ai_title = f"Fix {incident.get('root_cause', 'issue').replace('**', '')}"
+                                ai_description = f"""## Issue Summary
+{incident.get('description', 'Incident occurred in production environment')}
+
+## Root Cause Analysis
+{incident.get('root_cause', 'To be determined')}
+
+## Impact
+- Service: {incident.get('category', 'Unknown')}
+- Severity: {incident.get('severity', 'High')}
+- Start Time: {incident.get('created', datetime.now()).strftime('%Y-%m-%d %H:%M')}
+
+## Recommended Fix
+Based on the root cause analysis, the following actions are recommended:
+1. Review and optimize the affected component
+2. Implement proper error handling
+3. Add monitoring alerts for early detection
+4. Update documentation
+
+## Related Incident
+OpsItem ID: {incident_id}
+"""
+                                ai_component = incident.get('category', 'Core Service')
+                                ai_severity = "Critical" if incident.get('severity', '3') in ['1', '2'] else "High"
+                                
+                                # Store in session state
+                                st.session_state['ai_defect_title'] = ai_title
+                                st.session_state['ai_defect_description'] = ai_description
+                                st.session_state['ai_defect_component'] = ai_component
+                                st.session_state['ai_defect_severity'] = ai_severity
+                                st.session_state['ai_defect_ready'] = True
+                                
+                                st.success("✅ AI has generated defect details!")
+                
+                # Show AI-generated form if ready
+                if st.session_state.get('ai_defect_ready', False):
+                    st.markdown("### 📝 AI-Generated Defect Details")
+                    st.caption("Review and modify the AI-generated content before creating the defect")
+                    
+                    with st.form("ai_defect_create_form"):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            title = st.text_input("Title*", value=st.session_state.get('ai_defect_title', ''), key="ai_create_title")
+                            severity = st.selectbox("Severity*", ["Low", "Medium", "High", "Critical"], 
+                                                  index=["Low", "Medium", "High", "Critical"].index(st.session_state.get('ai_defect_severity', 'High')),
+                                                  key="ai_create_severity")
+                            component = st.text_input("Component", value=st.session_state.get('ai_defect_component', ''), key="ai_create_component")
+                        
+                        with col2:
+                            description = st.text_area("Description*", value=st.session_state.get('ai_defect_description', ''), 
+                                                     height=200, key="ai_create_description")
+                            target = st.selectbox("Create In*", ["ALM Octane", "Jira", "Both"], key="ai_create_target")
+                            environment = st.selectbox("Environment", ["Dev", "Test", "Staging", "Prod"], index=3, key="ai_create_environment")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            create_submitted = st.form_submit_button("🚀 Create AI Defect", type="primary")
+                        with col2:
+                            if st.form_submit_button("Clear", type="secondary"):
+                                st.session_state['ai_defect_ready'] = False
+                    
+                    if create_submitted and title and description:
+                        st.success(f"✅ AI-powered defect created in {target}")
+                        if target in ["ALM Octane", "Both"]:
+                            st.info(f"ALM Octane ID: ALM-{random.randint(1000, 9999)}")
+                        if target in ["Jira", "Both"]:
+                            st.info(f"Jira Key: BUG-{random.randint(100, 999)}")
+                        st.caption("🤖 This defect was created using AI analysis of the incident")
+                        st.session_state['ai_defect_ready'] = False
+            else:
+                st.warning("No recent incidents found. Create an incident first to use AI-powered defect creation.")
+        
+        else:  # Manual creation
+            with st.form("defect_create_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    title = st.text_input("Title*", key="create_title")
+                    severity = st.selectbox("Severity*", ["Low", "Medium", "High", "Critical"], key="create_severity")
+                    component = st.text_input("Component", key="create_component")
+                
+                with col2:
+                    description = st.text_area("Description*", key="create_description")
+                    target = st.selectbox("Create In*", ["ALM Octane", "Jira", "Both"], key="create_target")
+                    environment = st.selectbox("Environment", ["Dev", "Test", "Staging", "Prod"], key="create_environment")
+                
+                create_submitted = st.form_submit_button("Create Defect")
+            
+            if create_submitted and title and description:
+                st.success(f"✅ Defect would be created in {target}")
+                if target in ["ALM Octane", "Both"]:
+                    st.info(f"ALM Octane ID: ALM-{random.randint(1000, 9999)}")
+                if target in ["Jira", "Both"]:
+                    st.info(f"Jira Key: BUG-{random.randint(100, 999)}")
     
     def _render_defect_analytics(self):
         """Render defect analytics section"""
@@ -3539,31 +3777,40 @@ class EnhancedSREDashboard:
         """Perform correlation analysis"""
         st.subheader("🎯 Correlation Analysis Results")
         
-        with st.spinner("Analyzing correlations..."):
-            time.sleep(3)  # Simulate processing
+        # Check if this is from an incident (has OpsItem reference)
+        is_from_incident = "[Related OpsItem:" in incident_description
         
-        # Mock correlation results
+        with st.spinner("AI analyzing incident and searching for defect correlations..."):
+            time.sleep(2)  # Simulate processing
+        
+        # Mock correlation results - higher scores for incident-based analysis
+        if is_from_incident:
+            correlation_score = random.randint(75, 95) / 100
+            defects_found = random.randint(5, 15)
+        else:
+            correlation_score = random.randint(60, 90) / 100
+            defects_found = random.randint(3, 12)
+        
         col1, col2, col3 = st.columns(3)
         
-        correlation_score = random.randint(60, 95) / 100
-        
         with col1:
-            st.metric("Correlations Found", random.randint(3, 12))
+            st.metric("Defects Found", defects_found)
         
         with col2:
             score_icon = "🟢" if correlation_score >= 0.7 else "🟡" if correlation_score >= 0.4 else "🔴"
-            st.metric("Highest Score", f"{score_icon} {correlation_score:.1%}")
+            st.metric("Highest Match", f"{score_icon} {correlation_score:.1%}")
         
         with col3:
             likelihood = "High" if correlation_score >= 0.7 else "Medium" if correlation_score >= 0.4 else "Low"
-            st.metric("Defect Likelihood", likelihood)
+            st.metric("Root Cause Match", likelihood)
         
         # Correlation gauge
         fig = go.Figure(go.Indicator(
-            mode = "gauge+number",
+            mode = "gauge+number+delta",
             value = correlation_score * 100,
+            delta = {'reference': 70, 'valueformat': '.0f'},
             domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "Correlation Strength"},
+            title = {'text': "AI Confidence Score"},
             gauge = {
                 'axis': {'range': [None, 100]},
                 'bar': {'color': "darkblue"},
@@ -3571,23 +3818,83 @@ class EnhancedSREDashboard:
                     {'range': [0, 40], 'color': "lightgray"},
                     {'range': [40, 70], 'color': "yellow"},
                     {'range': [70, 100], 'color': "green"}
-                ]
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 90
+                }
             }
         ))
         fig.update_layout(height=300)
         st.plotly_chart(fig, use_container_width=True)
         
-        # Recommendations
-        st.subheader("💡 Recommendations")
-        recommendations = [
-            "Check ALM Octane for similar defects in affected components",
-            "Review recent code deployments for potential regressions", 
-            "Analyze Jira issues with matching symptoms",
-            "Check application logs for related error patterns"
-        ]
+        # Detailed correlation results
+        st.subheader("🔍 Correlated Defects")
         
-        for i, rec in enumerate(recommendations, 1):
-            st.markdown(f"{i}. {rec}")
+        # Generate mock defects based on incident data
+        defect_types = []
+        if "database" in incident_description.lower() or "db" in incident_description.lower():
+            defect_types.append(("Database", ["connection pool", "query optimization", "timeout configuration"]))
+        if "api" in incident_description.lower() or "gateway" in incident_description.lower():
+            defect_types.append(("API", ["rate limiting", "authentication", "response timeout"]))
+        if "performance" in incident_description.lower() or "latency" in incident_description.lower():
+            defect_types.append(("Performance", ["resource utilization", "caching", "load balancing"]))
+        if not defect_types:
+            defect_types.append(("General", ["service configuration", "error handling", "monitoring"]))
+        
+        # Display correlated defects
+        for defect_type, issues in defect_types[:2]:  # Show top 2 categories
+            st.markdown(f"#### {defect_type} Related Defects")
+            
+            for i, issue in enumerate(issues[:3]):  # Show top 3 issues per category
+                match_score = correlation_score - (i * 0.05) - random.uniform(0, 0.1)
+                match_score = max(0.5, min(1.0, match_score))
+                
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    defect_id = f"ALM-{random.randint(4000, 5000)}" if i % 2 == 0 else f"JIRA-{random.randint(800, 999)}"
+                    st.markdown(f"**{defect_id}**: {issue.title()} Issue")
+                    st.caption(f"Last updated: {random.randint(1, 30)} days ago")
+                with col2:
+                    st.metric("Match", f"{match_score:.0%}")
+                with col3:
+                    status = ["Open", "In Progress", "Resolved"][random.randint(0, 2)]
+                    status_color = {"Open": "🔴", "In Progress": "🟡", "Resolved": "🟢"}
+                    st.markdown(f"{status_color[status]} {status}")
+        
+        # Enhanced recommendations based on incident data
+        st.subheader("💡 AI Recommendations")
+        
+        recommendations = []
+        if is_from_incident:
+            recommendations.append(f"✅ Based on incident analysis, focus on {defect_types[0][0].lower()} related defects")
+            recommendations.append(f"📊 Found {defects_found} potentially related defects with >{correlation_score*100:.0f}% confidence")
+        
+        if severity in ["Critical", "High"]:
+            recommendations.append("🚨 High severity incident - prioritize immediate defect resolution")
+        
+        recommendations.extend([
+            "🔍 Review the top correlated defects above for similar root causes",
+            "📝 Consider creating a new defect if none match your incident exactly",
+            "🔄 Check recent deployments that might have introduced the issue"
+        ])
+        
+        for rec in recommendations:
+            st.markdown(f"• {rec}")
+        
+        # Action buttons
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("📋 View in ALM Octane", key="view_alm"):
+                st.info("Opening ALM Octane defects...")
+        with col2:
+            if st.button("📋 View in Jira", key="view_jira"):
+                st.info("Opening Jira issues...")
+        with col3:
+            if st.button("➕ Create New Defect", key="create_from_correlation"):
+                st.info("Navigate to Create tab to create a new defect")
 
     def render_postmortem_analysis(self):
         """Render the Post-Mortem Analysis tab"""
@@ -3624,6 +3931,107 @@ class EnhancedSREDashboard:
         """Render post-mortem report generator"""
         st.subheader("Generate Post-Mortem Report")
         
+        # Initialize session state for form fields
+        if 'pm_incident_id' not in st.session_state:
+            st.session_state.pm_incident_id = f"INC-{datetime.now().strftime('%Y%m%d-%H%M')}"
+        if 'pm_incident_type' not in st.session_state:
+            st.session_state.pm_incident_type = 0  # index for selectbox
+        if 'pm_severity' not in st.session_state:
+            st.session_state.pm_severity = 0  # index for selectbox
+        if 'pm_description' not in st.session_state:
+            st.session_state.pm_description = ""
+        if 'pm_services' not in st.session_state:
+            st.session_state.pm_services = ""
+        if 'pm_detection_method' not in st.session_state:
+            st.session_state.pm_detection_method = ""
+        if 'pm_immediate_actions' not in st.session_state:
+            st.session_state.pm_immediate_actions = ""
+        if 'pm_start_date' not in st.session_state:
+            st.session_state.pm_start_date = datetime.now().date()
+        if 'pm_start_time' not in st.session_state:
+            st.session_state.pm_start_time = datetime.now().time()
+        if 'pm_end_date' not in st.session_state:
+            st.session_state.pm_end_date = datetime.now().date()
+        if 'pm_end_time' not in st.session_state:
+            st.session_state.pm_end_time = datetime.now().time()
+        
+        # Move incident loading outside the form
+        load_container = st.container()
+        with load_container:
+            st.markdown("### Load from Recent Incidents")
+            recent_incidents = self.get_recent_incidents_for_dropdown()
+            if recent_incidents:
+                incident_options = [""] + [f"{inc['id']} - {inc['title'][:50]}" for inc in recent_incidents]
+                selected_incident = st.selectbox(
+                    "Select Recent Incident",
+                    incident_options,
+                    key="pm_incident_select"
+                )
+                
+                if selected_incident and selected_incident != "":
+                    incident_id_selected = selected_incident.split(" - ")[0]
+                    incident = next((inc for inc in recent_incidents if inc['id'] == incident_id_selected), None)
+                    
+                    if incident and st.button("📥 Load Incident Details", key="load_pm_incident"):
+                        # Update session state with incident data
+                        st.session_state.pm_incident_id = incident['id']
+                        st.session_state.pm_description = incident.get('description', '')
+                        
+                        # Map category to incident type
+                        category = incident.get('category', 'Unknown').lower()
+                        if 'performance' in category or 'latency' in category:
+                            st.session_state.pm_incident_type = 1  # performance
+                        elif 'security' in category or 'auth' in category:
+                            st.session_state.pm_incident_type = 2  # security
+                        elif 'data' in category:
+                            st.session_state.pm_incident_type = 3  # data_loss
+                        else:
+                            st.session_state.pm_incident_type = 0  # outage
+                        
+                        # Map severity
+                        severity_map = {'1': 0, '2': 0, '3': 1, '4': 2, '5': 3}  # to CRITICAL/HIGH/MEDIUM/LOW indices
+                        st.session_state.pm_severity = severity_map.get(str(incident.get('severity', '3')), 1)
+                        
+                        # Extract services from description
+                        desc_lower = incident['description'].lower()
+                        services_list = []
+                        if 'api' in desc_lower:
+                            services_list.append('api-gateway')
+                        if 'database' in desc_lower or 'db' in desc_lower:
+                            services_list.append('database')
+                        if 'auth' in desc_lower:
+                            services_list.append('auth-service')
+                        if 'user' in desc_lower:
+                            services_list.append('user-service')
+                        if 'payment' in desc_lower:
+                            services_list.append('payment-service')
+                        st.session_state.pm_services = ', '.join(services_list)
+                        
+                        # Set detection method based on source
+                        st.session_state.pm_detection_method = "CloudWatch monitoring alert"
+                        
+                        # Set immediate actions based on root cause
+                        root_cause = incident.get('root_cause', 'Unknown issue')
+                        st.session_state.pm_immediate_actions = f"1. Identified root cause: {root_cause}\n2. Initiated incident response protocol\n3. Notified on-call team\n4. Started real-time monitoring"
+                        
+                        # Set times
+                        created_time = incident.get('created_time', datetime.now())
+                        if isinstance(created_time, str):
+                            created_time = datetime.fromisoformat(created_time.replace('Z', '+00:00'))
+                        st.session_state.pm_start_date = created_time.date()
+                        st.session_state.pm_start_time = created_time.time()
+                        # Assume 2 hour resolution time
+                        end_time = created_time + timedelta(hours=2)
+                        st.session_state.pm_end_date = end_time.date()
+                        st.session_state.pm_end_time = end_time.time()
+                        
+                        st.success(f"✅ Loaded incident details from {incident_id_selected}")
+                        st.experimental_rerun()
+            else:
+                st.warning("No recent incidents found. Create an incident first.")
+        
+        st.markdown("---")
+        
         col1, col2 = st.columns(2)
         
         with col1:
@@ -3633,24 +4041,29 @@ class EnhancedSREDashboard:
                 
                 incident_id = st.text_input(
                     "Incident ID",
-                    value=f"INC-{datetime.now().strftime('%Y%m%d-%H%M')}",
+                    value=st.session_state.pm_incident_id,
                     help="Unique identifier for this incident"
                 )
                 
+                incident_types = ["outage", "performance", "security", "data_loss", "configuration"]
                 incident_type = st.selectbox(
                     "Incident Type",
-                    ["outage", "performance", "security", "data_loss", "configuration"],
+                    incident_types,
+                    index=st.session_state.pm_incident_type,
                     help="Select the type of incident"
                 )
                 
+                severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
                 severity = st.selectbox(
                     "Severity",
-                    ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+                    severities,
+                    index=st.session_state.pm_severity,
                     help="Incident severity level"
                 )
                 
                 description = st.text_area(
                     "Incident Description",
+                    value=st.session_state.pm_description,
                     placeholder="Describe what happened...",
                     help="Provide a detailed description of the incident"
                 )
@@ -3658,16 +4071,17 @@ class EnhancedSREDashboard:
                 # Time information
                 col_start, col_end = st.columns(2)
                 with col_start:
-                    start_date = st.date_input("Start Date", datetime.now().date())
-                    start_time = st.time_input("Start Time", datetime.now().time())
+                    start_date = st.date_input("Start Date", st.session_state.pm_start_date)
+                    start_time = st.time_input("Start Time", st.session_state.pm_start_time)
                 
                 with col_end:
-                    end_date = st.date_input("End Date", datetime.now().date())
-                    end_time = st.time_input("End Time", datetime.now().time())
+                    end_date = st.date_input("End Date", st.session_state.pm_end_date)
+                    end_time = st.time_input("End Time", st.session_state.pm_end_time)
                 
                 # Services affected
                 services = st.text_input(
                     "Services Affected",
+                    value=st.session_state.pm_services,
                     placeholder="e.g., payment-api, auth-service",
                     help="Comma-separated list of affected services"
                 )
@@ -3677,11 +4091,13 @@ class EnhancedSREDashboard:
                 
                 detection_method = st.text_input(
                     "How was the incident detected?",
+                    value=st.session_state.pm_detection_method,
                     placeholder="e.g., Monitoring alert, customer report"
                 )
                 
                 immediate_actions = st.text_area(
                     "Immediate Actions Taken",
+                    value=st.session_state.pm_immediate_actions,
                     placeholder="List the initial response actions..."
                 )
                 
@@ -3691,20 +4107,23 @@ class EnhancedSREDashboard:
                 submitted = st.form_submit_button("🚀 Generate Post-Mortem Report", type="primary")
         
         with col2:
-            # Recent incidents for reference
-            st.markdown("### Recent Incidents")
-            st.info("Select a recent incident to use as a template or reference")
+            # Tips and guidance
+            st.markdown("### Tips for Effective Post-Mortems")
+            st.info("""
+            📌 **Best Practices:**
+            - Be blameless - focus on process improvements
+            - Include all stakeholders in the analysis
+            - Document action items with clear owners
+            - Set deadlines for remediation
+            - Share learnings across teams
             
-            # Mock recent incidents
-            recent_incidents = [
-                {"id": "INC-20240115-001", "type": "outage", "title": "Database Connection Pool Exhaustion"},
-                {"id": "INC-20240114-003", "type": "performance", "title": "API Response Time Degradation"},
-                {"id": "INC-20240113-002", "type": "security", "title": "Unauthorized Access Attempt"}
-            ]
-            
-            for incident in recent_incidents:
-                if st.button(f"📄 {incident['id']}: {incident['title']}", key=f"recent_{incident['id']}"):
-                    st.info(f"Loading template from {incident['id']}...")
+            📊 **Key Sections:**
+            - Timeline of events
+            - Root cause analysis
+            - Impact assessment
+            - Lessons learned
+            - Action items
+            """)
         
         # Process form submission
         if submitted:
@@ -4291,6 +4710,62 @@ class EnhancedSREDashboard:
                     "severity": "high",
                     "components": ["Multi-Region", "CloudFront", "S3"]
                 }
+            ],
+            "Data Issues": [
+                {
+                    "name": "Data Replication Lag",
+                    "description": "Significant lag in cross-region data replication",
+                    "severity": "high",
+                    "components": ["DynamoDB", "S3", "Kinesis"]
+                },
+                {
+                    "name": "Data Corruption Detected",
+                    "description": "Checksum mismatches in critical data files",
+                    "severity": "critical",
+                    "components": ["S3", "RDS", "Backup Service"]
+                }
+            ],
+            "Infrastructure Failures": [
+                {
+                    "name": "Multi-AZ Failover",
+                    "description": "Primary AZ experiencing network issues",
+                    "severity": "critical",
+                    "components": ["VPC", "EC2", "RDS Multi-AZ"]
+                },
+                {
+                    "name": "Auto Scaling Failure",
+                    "description": "ASG not responding to increased load",
+                    "severity": "high",
+                    "components": ["Auto Scaling", "EC2", "CloudWatch"]
+                }
+            ],
+            "Change-Related": [
+                {
+                    "name": "Failed Deployment Rollback",
+                    "description": "Recent deployment caused errors, rollback initiated",
+                    "severity": "high",
+                    "components": ["CodeDeploy", "ECS", "Lambda"]
+                },
+                {
+                    "name": "Configuration Change Impact",
+                    "description": "Config update caused unexpected service behavior",
+                    "severity": "medium",
+                    "components": ["Systems Manager", "Parameter Store", "Lambda"]
+                }
+            ],
+            "Defect-Related": [
+                {
+                    "name": "Memory Leak in Production",
+                    "description": "Known defect DEF-4521 causing memory exhaustion",
+                    "severity": "high",
+                    "components": ["EC2", "Application", "CloudWatch"]
+                },
+                {
+                    "name": "Race Condition Bug",
+                    "description": "Intermittent race condition affecting order processing",
+                    "severity": "critical",
+                    "components": ["Lambda", "SQS", "DynamoDB"]
+                }
             ]
         }
         
@@ -4521,16 +4996,39 @@ class EnhancedSREDashboard:
     def _generate_test_incident(self, scenario, category):
         """Generate a test incident from a predefined scenario"""
         try:
+            # Map severity text to numeric value
+            severity_map = {
+                'critical': '1',
+                'high': '2',
+                'medium': '3',
+                'low': '4'
+            }
+            severity_value = severity_map.get(scenario['severity'].lower(), '3')
+            
+            # Create OpsItem in AWS
+            title = f"[TEST] {scenario['name']}"
+            description = f"{scenario['description']}\n\nComponents: {', '.join(scenario['components'])}\nCategory: {category}"
+            
+            # Create the OpsItem
+            ops_item_id = self.create_opsitem(title, description, severity_value)
+            
+            if not ops_item_id:
+                st.error("Failed to create OpsItem")
+                return None
+            
+            # Create incident object with OpsItem ID
             incident = {
-                "incident_id": f"TEST-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "incident_id": ops_item_id,
+                "ops_item_id": ops_item_id,
                 "title": scenario['name'],
                 "description": scenario['description'],
-                "severity": scenario['severity'],
+                "severity": severity_value,
                 "category": category,
                 "components": scenario['components'],
                 "start_time": datetime.now().isoformat(),
                 "status": "active",
-                "test_scenario": True
+                "test_scenario": True,
+                "type": "aws_opsitem"
             }
             
             # Add category-specific attributes
@@ -4551,17 +5049,35 @@ class EnhancedSREDashboard:
                     }
                 })
             
+            # Store in session state
+            if 'generated_incidents' not in st.session_state:
+                st.session_state.generated_incidents = []
+            st.session_state.generated_incidents.append(incident)
+            
             return incident
             
         except Exception as e:
             st.error(f"Error generating test incident: {str(e)}")
+            logger.error(f"Test incident generation error: {str(e)}")
             return None
     
     def _generate_custom_incident(self, scenario):
         """Generate incident from custom scenario"""
         try:
+            # Create OpsItem in AWS
+            title = f"[CUSTOM] {scenario['name']}"
+            description = f"Type: {scenario['type']}\nServices: {', '.join(scenario['services'])}\nSymptoms: {scenario['symptoms']}\nBusiness Impact: {scenario['impact']}"
+            
+            # Create the OpsItem
+            ops_item_id = self.create_opsitem(title, description, scenario['severity'])
+            
+            if not ops_item_id:
+                st.error("Failed to create OpsItem")
+                return None
+            
             incident = {
-                "incident_id": f"CUSTOM-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "incident_id": ops_item_id,
+                "ops_item_id": ops_item_id,
                 "title": scenario['name'],
                 "type": scenario['type'],
                 "severity": scenario['severity'],
@@ -4573,13 +5089,20 @@ class EnhancedSREDashboard:
                 "root_cause_hints": scenario.get('root_cause_hints', []),
                 "start_time": datetime.now().isoformat(),
                 "status": "active",
-                "custom_scenario": True
+                "custom_scenario": True,
+                "type": "aws_opsitem"
             }
+            
+            # Store in session state
+            if 'generated_incidents' not in st.session_state:
+                st.session_state.generated_incidents = []
+            st.session_state.generated_incidents.append(incident)
             
             return incident
             
         except Exception as e:
             st.error(f"Error generating custom incident: {str(e)}")
+            logger.error(f"Custom incident generation error: {str(e)}")
             return None
     
     def _generate_batch_report(self, results):

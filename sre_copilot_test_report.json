@@ -1,0 +1,117 @@
+{
+  "test_run": "2025-08-14T10:12:24.000971",
+  "environment": {
+    "streamlit_url": "http://localhost:8501",
+    "aws_region": "us-east-1"
+  },
+  "summary": {
+    "total": 17,
+    "passed": 9,
+    "failed": 8,
+    "success_rate": "52.9%"
+  },
+  "results": [
+    {
+      "test": "Streamlit Components",
+      "passed": false,
+      "message": "st.session_state has no attribute \"widget_render_count\". Did you forget to initialize it? More info: https://docs.streamlit.io/library/advanced-features/session-state#initialization",
+      "timestamp": "2025-08-14T10:12:15.149744"
+    },
+    {
+      "test": "Incident Creation Flow",
+      "passed": false,
+      "message": "cannot import name 'get_incident_scenarios' from 'incident_scenarios' (/home/ec2-user/sre/sre_mcp/incident_scenarios.py)",
+      "timestamp": "2025-08-14T10:12:16.153923"
+    },
+    {
+      "test": "Defect Correlation",
+      "passed": false,
+      "message": "__init__() missing 1 required positional argument: 'mcp_endpoints'",
+      "timestamp": "2025-08-14T10:12:17.315206"
+    },
+    {
+      "test": "Change Correlation",
+      "passed": false,
+      "message": "'ChangeIncidentCorrelator' object has no attribute 'correlate_incident_to_changes'",
+      "timestamp": "2025-08-14T10:12:17.481043"
+    },
+    {
+      "test": "Knowledge Base",
+      "passed": false,
+      "message": "cannot import name 'get_knowledge_base_documents' from 'knowledge_base_documents' (/home/ec2-user/sre/sre_mcp/knowledge_base_documents.py)",
+      "timestamp": "2025-08-14T10:12:18.483432"
+    },
+    {
+      "test": "MCP SPLUNK",
+      "passed": true,
+      "message": "Port 9080",
+      "timestamp": "2025-08-14T10:12:19.490127"
+    },
+    {
+      "test": "MCP SERVICENOW",
+      "passed": true,
+      "message": "Port 9082",
+      "timestamp": "2025-08-14T10:12:19.494036"
+    },
+    {
+      "test": "MCP ALM_OCTANE",
+      "passed": true,
+      "message": "Port 9085",
+      "timestamp": "2025-08-14T10:12:19.498447"
+    },
+    {
+      "test": "MCP JIRA",
+      "passed": true,
+      "message": "Port 9086",
+      "timestamp": "2025-08-14T10:12:19.503352"
+    },
+    {
+      "test": "MCP Integration Overall",
+      "passed": true,
+      "message": "4/7 services online",
+      "timestamp": "2025-08-14T10:12:19.503372"
+    },
+    {
+      "test": "IP Masking Agent",
+      "passed": false,
+      "message": "No module named 'ip_masking_agent'",
+      "timestamp": "2025-08-14T10:12:20.504747"
+    },
+    {
+      "test": "Post-Mortem Agent",
+      "passed": false,
+      "message": "No module named 'post_mortem_agent'",
+      "timestamp": "2025-08-14T10:12:20.504892"
+    },
+    {
+      "test": "Lambda sre-supervisor-lambda",
+      "passed": true,
+      "message": "Active",
+      "timestamp": "2025-08-14T10:12:21.655448"
+    },
+    {
+      "test": "Lambda sre-knowledge-base-agent",
+      "passed": true,
+      "message": "Active",
+      "timestamp": "2025-08-14T10:12:21.750843"
+    },
+    {
+      "test": "Lambda sre-cloudwatch-agent",
+      "passed": false,
+      "message": "Not found",
+      "timestamp": "2025-08-14T10:12:21.815440"
+    },
+    {
+      "test": "Lambda Integration Overall",
+      "passed": true,
+      "message": "2/3 lambdas active",
+      "timestamp": "2025-08-14T10:12:21.815476"
+    },
+    {
+      "test": "API Endpoint Verifier",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-08-14T10:12:22.999581"
+    }
+  ]
+}
