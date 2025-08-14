@@ -542,7 +542,7 @@ class EnhancedSREDashboard:
             st.markdown("### 🚀 Generate Incident")
             
             # Add MCP Test Scenarios if available
-            incident_categories = ["Standard AWS", "MCP Integration Test"] if MCP_AVAILABLE else ["Standard AWS"]
+            incident_categories = ["Standard AWS", "MCP Integration Test", "🌟 Comprehensive Demo"] if MCP_AVAILABLE else ["Standard AWS", "🌟 Comprehensive Demo"]
             incident_category = st.selectbox("Incident Category", incident_categories)
             
             if incident_category == "Standard AWS":
@@ -550,11 +550,31 @@ class EnhancedSREDashboard:
                     "Select Incident Type to Generate",
                     ["Performance Degradation", "Security Alert", "Service Outage"]
                 )
-            else:
+            elif incident_category == "MCP Integration Test":
                 # MCP Test Scenarios
                 mcp_scenarios = enhanced_scenarios.get_scenarios() if MCP_AVAILABLE else []
                 scenario_names = [s['incident']['title'] for s in mcp_scenarios]
                 incident_type = st.selectbox("Select MCP Scenario", scenario_names)
+            else:
+                # Comprehensive Demo Scenarios
+                st.info("🌟 These scenarios create real AWS resources with actual logs, metrics, and correlations")
+                
+                demo_scenarios = [
+                    {"id": "change_correlation", "name": "🔧 Change-Induced Incident", "desc": "DB config change → connection exhaustion"},
+                    {"id": "defect_correlation", "name": "🐛 Known Defect Incident", "desc": "Memory leak DEF-4521 → service crash"}, 
+                    {"id": "jms_timeout", "name": "📬 JMS Session Timeout", "desc": "Queue buildup → session timeouts"},
+                    {"id": "vpc_cloudtrail", "name": "🔐 Security Correlation", "desc": "Data exfiltration → VPC+CloudTrail analysis"}
+                ]
+                
+                scenario_display = st.selectbox(
+                    "Select Demo Scenario",
+                    [f"{s['name']} - {s['desc']}" for s in demo_scenarios],
+                    help="Each scenario demonstrates specific correlation capabilities"
+                )
+                
+                # Get selected scenario ID
+                selected_idx = [f"{s['name']} - {s['desc']}" for s in demo_scenarios].index(scenario_display)
+                incident_type = demo_scenarios[selected_idx]['id']
             
             # Create unique button key
             button_key = key_manager.get_unique_key("generate_incident", incident_category, incident_type)
@@ -633,8 +653,52 @@ class EnhancedSREDashboard:
         # Use sidebar context for all output
         with st.sidebar:
             with st.spinner(f"🔥 Generating {incident_type} incident..."):
+                # Check if this is a comprehensive demo scenario
+                if incident_type in ['change_correlation', 'defect_correlation', 'jms_timeout', 'vpc_cloudtrail']:
+                    from comprehensive_demo_scenarios import ComprehensiveDemoScenarios
+                    demo_generator = ComprehensiveDemoScenarios()
+                    
+                    try:
+                        result = demo_generator.create_demo_incident(incident_type)
+                        
+                        # Store the incident
+                        incident_data = {
+                            'type': 'aws_opsitem',
+                            'ops_item_id': result['incident_id'],
+                            'ui_type': incident_type,
+                            'start_time': datetime.now(),
+                            'demo_type': result['type'],
+                            'description': result['message']
+                        }
+                        
+                        if 'change_id' in result:
+                            incident_data['related_change'] = result['change_id']
+                        if 'defect_id' in result:
+                            incident_data['related_defect'] = result['defect_id']
+                        
+                        st.session_state.generated_incidents.append(incident_data)
+                        st.session_state.current_incident = incident_data
+                        
+                        st.success(result['message'])
+                        
+                        # Show additional info based on type
+                        if incident_type == 'change_correlation':
+                            st.info("📌 Change record created with timeline showing config change → incident")
+                        elif incident_type == 'defect_correlation':
+                            st.info("🐛 Incident linked to known defect DEF-4521 with memory metrics")
+                        elif incident_type == 'jms_timeout':
+                            st.info("📬 JMS metrics and logs created showing queue depth and timeouts")
+                        elif incident_type == 'vpc_cloudtrail':
+                            st.info("🔐 VPC Flow Logs and CloudTrail events created for correlation")
+                        
+                        return
+                        
+                    except Exception as e:
+                        st.error(f"Error creating demo incident: {str(e)}")
+                        return
+                
                 # Check if this is an MCP scenario
-                if MCP_AVAILABLE and 'enhanced_scenarios' in globals():
+                elif MCP_AVAILABLE and 'enhanced_scenarios' in globals():
                     mcp_scenarios = enhanced_scenarios.get_scenarios()
                     if incident_type in [s['incident']['title'] for s in mcp_scenarios]:
                         # Handle MCP test scenario
@@ -725,8 +789,37 @@ class EnhancedSREDashboard:
                     status_text.text("Fetching incident details...")
                     progress_bar.progress(10)
                     
-                    ops_response = self.ssm_client.get_ops_item(OpsItemId=ops_item_id)
-                    ops_item = ops_response['OpsItem']
+                    # Check if this is an MCP test incident
+                    if ops_item_id.startswith('MCP-TEST-'):
+                        # Find the MCP test incident in session state
+                        mcp_incident = None
+                        for incident in st.session_state.get('generated_incidents', []):
+                            if incident.get('ops_item_id') == ops_item_id:
+                                mcp_incident = incident
+                                break
+                        
+                        if not mcp_incident:
+                            st.error(f"MCP test incident {ops_item_id} not found in session")
+                            return
+                        
+                        # Create a mock OpsItem structure for MCP test
+                        ops_item = {
+                            'OpsItemId': ops_item_id,
+                            'Title': f"[MCP TEST] {mcp_incident.get('ui_type', 'Test Incident')}",
+                            'Description': mcp_incident.get('description', ''),
+                            'Severity': str(mcp_incident.get('severity', 3)),
+                            'Status': 'Open',
+                            'Source': 'MCP-Test',
+                            'CreatedTime': mcp_incident.get('start_time', datetime.now()),
+                            'OperationalData': {
+                                'service': {'Value': mcp_incident.get('service', 'test-service')},
+                                'scenario_data': {'Value': json.dumps(mcp_incident.get('scenario_data', {}))}
+                            }
+                        }
+                    else:
+                        # Regular AWS OpsItem
+                        ops_response = self.ssm_client.get_ops_item(OpsItemId=ops_item_id)
+                        ops_item = ops_response['OpsItem']
                     
                     # Step 2: Collect data from various sources
                     status_text.text("Collecting data from AWS services...")
@@ -1074,11 +1167,23 @@ class EnhancedSREDashboard:
             
             ops_items = response.get('OpsItemSummaries', [])
             
-            if ops_items:
+            # Add MCP test incidents from session state
+            mcp_test_items = []
+            for incident in st.session_state.get('generated_incidents', []):
+                if incident.get('ops_item_id', '').startswith('MCP-TEST-'):
+                    mcp_test_items.append({
+                        'OpsItemId': incident['ops_item_id'],
+                        'Title': f"[MCP TEST] {incident.get('ui_type', 'Test Incident')}"
+                    })
+            
+            # Combine AWS OpsItems and MCP test items
+            all_items = ops_items + mcp_test_items
+            
+            if all_items:
                 # Create selection options
                 options = ["-- Enter manually --"] + [
                     f"{item['OpsItemId']} - {item['Title']}" 
-                    for item in ops_items
+                    for item in all_items
                 ]
                 
                 selected = st.selectbox("Select an OpsItem to analyze:", options)
