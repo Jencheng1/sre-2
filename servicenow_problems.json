@@ -1,0 +1,40 @@
+[
+  {
+    "id": "PRB20250814153601",
+    "created": "2025-08-14T15:36:01.410577",
+    "short_description": "Problem from incident",
+    "description": "Application experiencing intermittent timeouts during peak hours",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      "OPS-VERIFY-001"
+    ],
+    "root_cause": "Under investigation",
+    "workaround": "None available"
+  },
+  {
+    "id": "PRB20250814154044",
+    "created": "2025-08-14T15:40:44.058252",
+    "short_description": "Problem from incident",
+    "description": "Automated incident generated for performance scenario. Components affected: Generated 5 high load metrics, Generated 5 performance warning logs",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      "oi-8427e1776c05"
+    ],
+    "root_cause": "Under investigation",
+    "workaround": "None available"
+  }
+]

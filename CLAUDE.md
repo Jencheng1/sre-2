@@ -88,7 +88,50 @@ cd /home/ec2-user/sre/sre_mcp
 ## Session Context Saved
 Context saved to PROJECT_CONTEXT.md on 2025-08-03 17:58:16
 
-## Latest Session Update - August 12, 2025
+## Latest Session Update - August 14, 2025
+The **PROBLEM MANAGEMENT SYSTEM** is now integrated with ServiceNow and synthetic transaction generation:
+- ✅ ServiceNow Problem Manager with AI-powered analysis
+- ✅ Synthetic Transaction Generator creating CloudWatch logs/metrics
+- ✅ VPC Flow Logs and CloudTrail event generation
+- ✅ Problem-Incident correlation with confidence scoring
+- ✅ Enhanced Streamlit UI with Problem Management tabs
+- ✅ Backup created: `backup_sre_mcp_20250814_143634.tar.gz`
+- ✅ **BUG FIX**: Fixed incident display issue in Problem Management tabs
+
+**New Files Created:**
+- `servicenow_problem_manager.py` - ServiceNow problem management integration
+- `synthetic_transaction_generator.py` - Generate synthetic transactions and logs
+- `streamlit_app_problem_management.py` - Enhanced UI with problem management
+- `PROBLEM_MANAGEMENT_CONTEXT.md` - Complete documentation
+- `PROBLEM_MANAGEMENT_BUG_FIX.md` - Bug fix documentation
+- `test_problem_management.py` - Comprehensive test suite
+- `test_incident_fix.py` - Test for incident display fix
+
+**Key Features:**
+- AI-powered problem creation from incidents using Bedrock
+- Incident-to-problem correlation with confidence scoring
+- Synthetic transaction generation based on incident patterns
+- CloudWatch logs/metrics generation
+- VPC Flow Logs and CloudTrail event simulation
+- Problem analytics and timeline visualization
+
+**Testing Commands:**
+```bash
+# Run the enhanced Streamlit app
+export AWS_DEFAULT_REGION=us-east-1 && python3 -m streamlit run streamlit_app_problem_management.py --server.port 8501 --server.address 0.0.0.0
+
+# Access Problem Management features
+# Navigate to Advanced Tools > Problem Management
+# Navigate to Advanced Tools > Synthetic Transactions
+```
+
+**Important Bug Fix (Aug 14):**
+Fixed incident display issue where Problem Management tabs showed "No recent incidents available". The fix:
+1. Corrected session state access from `incident_history` to `generated_incidents`
+2. Added incident data normalization to handle different field names (`ops_item_id` vs `id`, `description` vs `title`)
+3. Now all incidents generated in the main Incident Management tab are properly displayed in Problem Management
+
+## Previous Session Update - August 12, 2025
 The **COMPREHENSIVE INCIDENT CORRELATION SYSTEM** is now **100% OPERATIONAL** with both defect and change analysis:
 - ✅ ALM Octane MCP Server running on port 9085 with full defect management
 - ✅ Jira MCP Server running on port 9086 with complete issue tracking
