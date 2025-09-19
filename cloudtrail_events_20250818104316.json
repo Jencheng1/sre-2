@@ -1,0 +1,338 @@
+[
+  {
+    "eventTime": "2025-08-18T10:23:16.729202",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA1BF68FE707",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "cache",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "602ca26c-e778-4197-a83d-a83b115ed7b5",
+    "eventID": "b6249729-eec5-467f-8808-6ad796ed7458",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:25:56.729202",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA476D1B121D",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "backend",
+      "action": "delete"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "37078ab4-8bc6-475a-92ab-1332986ce212",
+    "eventID": "ce571e3f-97aa-4414-865f-5904080adb9b",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:26:36.729202",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAC4810C5968",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "database",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": null
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": null,
+    "requestID": "a1ab464e-21de-4067-bdaf-2166fb9db5bd",
+    "eventID": "4186cebe-4680-4fd1-9540-c6374bf55457",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:28:36.729202",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAB8285D8AB5",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "read"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "eef3f072-38eb-44f1-b91f-61825ac34b6e",
+    "eventID": "5aeee592-bae3-4175-91fc-07f4dc4926ec",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:29:16.729202",
+    "eventName": "AssumeRoleFailure",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA9D5CD77339",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "backend",
+      "action": "write"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": null
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": null,
+    "requestID": "5b9ed91a-a107-46b1-b29c-749ea6c1c923",
+    "eventID": "d2656ff6-8bf8-4be1-9906-ab63d6c5a8fc",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:29:56.729202",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA93BEF8FEB0",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "delete"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": "Generic error"
+    },
+    "errorCode": null,
+    "errorMessage": "Generic error",
+    "requestID": "64093bd8-2be4-48ca-b13c-899d6337b4e5",
+    "eventID": "3222cd41-75b5-4a1a-9909-f75a2e2f31ff",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:30:36.729202",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA938E7D3CDC",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "write"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "21c48f64-2993-4799-9323-7cf389c79871",
+    "eventID": "0bcd8d5c-7a03-48b5-b752-23c31b2b12c2",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:35:16.729202",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA63C12007F0",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "cache",
+      "action": "read"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "09059ba6-42d8-4850-8f8e-152ecaab53c5",
+    "eventID": "d14bec37-6037-4899-b2f6-b17a505de1de",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:35:56.729202",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAF69365C841",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": "Generic error"
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": "Generic error",
+    "requestID": "349ed40d-6482-4f33-b9d2-21266c322496",
+    "eventID": "99b8ada7-3b12-4c74-8d8a-104e49584165",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:36:36.729202",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAFD9293208A",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "backend",
+      "action": "read"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": null
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": null,
+    "requestID": "98afc9a1-ec2d-4603-a2bd-f61289bb0976",
+    "eventID": "cf4aff59-77a2-4766-bffd-03371675742a",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:37:16.729202",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA4CC33FD99E",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "delete"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "6821c41b-11ed-4245-bb44-de947b9a49f2",
+    "eventID": "9a435cab-e508-4eb3-a973-7e96ceb6d9a8",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:41:16.729202",
+    "eventName": "AssumeRoleFailure",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA978207A3F1",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "cache",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": null
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": null,
+    "requestID": "97bbd837-001c-4399-beb7-f3efdd82ed36",
+    "eventID": "f6c4de8a-9e0c-499b-9009-1b72c713a9ab",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  }
+]

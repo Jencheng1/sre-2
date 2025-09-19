@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-09-19T13:00:39.781540",
+  "total_tests": 8,
+  "passed": 3,
+  "failed": 5,
+  "pass_rate": 37.5,
+  "results": [
+    {
+      "test": "Supervisor Lambda AI Analysis",
+      "passed": false,
+      "details": "'StatusCode'"
+    },
+    {
+      "test": "Incident Type Analysis",
+      "passed": false,
+      "details": ""
+    },
+    {
+      "test": "CloudWatch Metrics Generation",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "CloudWatch Logs Generation",
+      "passed": false,
+      "details": ""
+    },
+    {
+      "test": "Knowledge Base Integration",
+      "passed": false,
+      "details": "An error occurred (ResourceNotFoundException) when calling the Invoke operation: Function not found: arn:aws:lambda:us-east-1:637423485585:function:knowledge-base-lambda:$LATEST"
+    },
+    {
+      "test": "Streamlit API Endpoints",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Incident Correlation",
+      "passed": false,
+      "details": ""
+    },
+    {
+      "test": "Error Handling",
+      "passed": true,
+      "details": ""
+    }
+  ]
+}

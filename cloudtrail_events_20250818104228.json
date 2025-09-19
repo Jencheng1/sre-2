@@ -1,0 +1,310 @@
+[
+  {
+    "eventTime": "2025-08-18T10:24:28.523223",
+    "eventName": "AssumeRoleFailure",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA08BFCEAB83",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "write"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": null
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": null,
+    "requestID": "1fd465b7-92dd-4d61-9bca-b6684144fc46",
+    "eventID": "54c71fd0-e8a2-4afa-a085-e5d64e628f4c",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:25:08.523223",
+    "eventName": "AssumeRoleFailure",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAEC090727C4",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "backend",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": null
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": null,
+    "requestID": "8ee99d91-6ba6-47b9-927f-3ec1c9c026fa",
+    "eventID": "97275ecd-aa3a-4700-bdd5-ce001e712371",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:25:48.523223",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA0CFA2ACF89",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "cache",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": null
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": null,
+    "requestID": "075c942f-e6e8-4414-9767-e8ab960f7f2d",
+    "eventID": "302df088-7a47-4b3c-9174-e8065aa9f88b",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:27:48.523223",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA0BE7E7542A",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "cache",
+      "action": "delete"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "e6295b87-7acd-4e31-a2a5-e8c738da882c",
+    "eventID": "f4f7e72c-b87f-4c2f-94c2-0252e21e0b7b",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:30:28.523223",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA73A89F72B1",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "backend",
+      "action": "read"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "93e65e48-c45a-428a-aaa1-75fe18f927fe",
+    "eventID": "66f0235d-aadd-403e-b2cd-dbdce590b746",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:31:48.523223",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA4C0EEC7C39",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "write"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "a9ebc4c4-8e85-421e-9fc5-4038f3878892",
+    "eventID": "f09a8163-f48f-4dee-b5e3-60d09f7730ab",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:32:28.523223",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAF4DE315995",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "36c25388-df88-45e1-ab1b-c66bc3a63124",
+    "eventID": "1f87b0d5-8ceb-481c-9008-3fc97e9b2dd7",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:34:28.523223",
+    "eventName": "AssumeRoleFailure",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA9E2BEB3A3E",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "backend",
+      "action": "write"
+    },
+    "responseElements": {
+      "status": "failed",
+      "error": "Generic error"
+    },
+    "errorCode": "AccessDenied",
+    "errorMessage": "Generic error",
+    "requestID": "d8158a90-812d-425d-a695-025986e6e385",
+    "eventID": "d828329c-5b33-4e25-bde7-0ac38240d4c9",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:39:08.523223",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAE991BEFE78",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "7dace1ff-3199-4b1b-bd8d-5b498ea58e0c",
+    "eventID": "0c5546d7-ec51-4cc5-a926-f5d63cadcd8d",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:40:28.523223",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA08A265E2A9",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "frontend",
+      "action": "write"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "62056332-8f5f-4feb-8a14-c2b63238847a",
+    "eventID": "c22c1346-5e14-40d9-be14-d9266aa4f49b",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-08-18T10:41:48.523223",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAA398ADDB8F",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "component": "backend",
+      "action": "update"
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "6633824c-f52f-4f0b-886e-fffcc2a7ef67",
+    "eventID": "7e641c25-0e0b-4072-b701-712f2ab30d3d",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  }
+]
