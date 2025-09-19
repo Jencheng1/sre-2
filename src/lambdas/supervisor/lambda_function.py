@@ -17,10 +17,19 @@ except ImportError:
     class IPMasker:
         def __init__(self, mask_type="partial"):
             self.mask_type = mask_type
+            self.masked_count = 0
         def mask_text(self, text):
-            return text, {}
+            # Simple IP masking
+            import re
+            pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+            masked_text = re.sub(pattern, 'xxx.xxx.xxx.xxx', text)
+            if masked_text != text:
+                self.masked_count += 1
+            return masked_text, {}
         def mask_log_entries(self, entries):
             return entries
+        def get_masking_stats(self):
+            return {'ips_masked': self.masked_count}
     def mask_logs_for_llm(logs, mask_type="partial"):
         return logs
 
@@ -34,6 +43,96 @@ lambda_client = boto3.client('lambda')
 cloudwatch = boto3.client('cloudwatch')
 logs_client = boto3.client('logs')
 ssm_client = boto3.client('ssm')
+
+def analyze_with_bedrock(incident_description, context_data, incident_type=None):
+    """Analyze incident using AWS Bedrock with Claude 3 Sonnet for better analysis."""
+    try:
+        # Prepare context summary
+        context_summary = {
+            "incident_type": incident_type,
+            "metrics": {},
+            "logs": {},
+            "knowledge_base": {}
+        }
+        
+        # Extract key metrics
+        if 'metrics_data' in context_data:
+            metrics = context_data['metrics_data']
+            for metric_name, data in metrics.items():
+                if data and 'latest' in data:
+                    latest = data['latest']
+                    context_summary['metrics'][metric_name] = {
+                        'average': latest.get('Average', 0),
+                        'maximum': latest.get('Maximum', 0),
+                        'minimum': latest.get('Minimum', 0)
+                    }
+        
+        # Extract log summary
+        if 'log_data' in context_data:
+            logs = context_data['log_data']
+            context_summary['logs'] = {
+                'error_count': logs.get('error_count', 0),
+                'warning_count': logs.get('warning_count', 0),
+                'recent_errors': logs.get('error_messages', [])[:5]  # Top 5 errors
+            }
+        
+        # Include KB context if available
+        if 'kb_context' in context_data and context_data['kb_context'].get('similar_incidents'):
+            context_summary['knowledge_base'] = {
+                'similar_incidents_count': len(context_data['kb_context']['similar_incidents']),
+                'top_resolution': context_data['kb_context']['similar_incidents'][0].get('resolution', 'N/A') if context_data['kb_context']['similar_incidents'] else 'N/A'
+            }
+        
+        # Prepare the prompt
+        prompt = f"""You are an expert SRE analyzing a production incident. 
+
+Incident Description: {incident_description}
+Incident Type: {incident_type or 'Unknown'}
+
+Context Data:
+{json.dumps(context_summary, indent=2)}
+
+Based on the metrics, logs, and knowledge base context, please provide:
+
+1. **Root Cause Analysis**: Identify the most likely root cause based on the evidence
+2. **Impact Assessment**: Describe the business and technical impact
+3. **Immediate Mitigation Steps**: List 3-5 actionable steps to resolve the issue NOW
+4. **Long-term Recommendations**: Suggest improvements to prevent recurrence
+5. **Similar Incidents**: Note any patterns from past incidents if available
+
+Be specific, technical, and actionable. Focus on the evidence from metrics and logs."""
+
+        # Call Bedrock with Claude 3 Sonnet for better analysis
+        response = bedrock_runtime.invoke_model(
+            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            contentType='application/json',
+            accept='application/json',
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 2000,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.3  # Lower temperature for more consistent technical analysis
+            })
+        )
+        
+        result = json.loads(response['body'].read())
+        ai_analysis = result.get('content', [{}])[0].get('text', '')
+        
+        if ai_analysis:
+            logger.info("Successfully generated AI-powered root cause analysis")
+            return ai_analysis
+        else:
+            logger.warning("AI analysis returned empty result")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error in analyze_with_bedrock: {str(e)}")
+        return None
 
 def analyze_incident_type(incident_description):
     """Determine the type of incident from the description."""
@@ -98,64 +197,55 @@ def get_demo_logs(log_group='/aws/demo/sre-incident-generator', start_time=None,
         'error_messages': [],
         'recent_events': [],
         'original_events': [],  # Store original unmasked events
-        'ip_masking_applied': mask_ips,
-        'masked_ip_count': 0
+        'masking_applied': mask_ips
     }
     
-    # Initialize IP masker
-    masker = IPMasker(mask_type="partial") if mask_ips else None
-    
     try:
-        # Get log streams
-        streams = logs_client.describe_log_streams(
+        # Create IP masker if needed
+        masker = IPMasker(mask_type="partial") if mask_ips else None
+        
+        response = logs_client.filter_log_events(
             logGroupName=log_group,
-            orderBy='LastEventTime',
-            descending=True,
-            limit=5
+            startTime=int(start_time.timestamp() * 1000),
+            endTime=int(end_time.timestamp() * 1000),
+            limit=100
         )
         
-        for stream in streams.get('logStreams', [])[:3]:  # Check last 3 streams
-            events = logs_client.filter_log_events(
-                logGroupName=log_group,
-                logStreamNames=[stream['logStreamName']],
-                startTime=int(start_time.timestamp() * 1000),
-                endTime=int(end_time.timestamp() * 1000),
-                limit=50
-            )
+        events = response.get('events', [])
+        
+        for event in events:
+            message = event.get('message', '')
+            original_message = message  # Keep original
             
-            for event in events.get('events', []):
-                try:
-                    msg = json.loads(event['message'])
-                    
-                    # Store original event
-                    log_data['original_events'].append(msg.copy())
-                    
-                    # Apply IP masking if enabled
-                    if mask_ips and masker:
-                        # Mask the entire message object
-                        msg = masker.mask_json(msg)
-                        
-                        # Mask error messages specifically
-                        if 'message' in msg:
-                            masked_text, ip_map = masker.mask_text(msg['message'])
-                            if ip_map:
-                                log_data['masked_ip_count'] += len(ip_map)
-                            msg['message'] = masked_text
-                    
-                    log_data['recent_events'].append(msg)
-                    
-                    if msg.get('level') == 'ERROR' or msg.get('level') == 'FATAL':
-                        log_data['error_count'] += 1
-                        log_data['error_messages'].append(msg.get('message', ''))
-                    elif msg.get('level') == 'WARN':
-                        log_data['warning_count'] += 1
-                except:
-                    pass
-                    
+            # Apply IP masking if enabled
+            if mask_ips and masker:
+                message, _ = masker.mask_text(message)
+            
+            # Count errors and warnings
+            if 'ERROR' in message:
+                log_data['error_count'] += 1
+                log_data['error_messages'].append(message[:200])  # First 200 chars
+            elif 'WARNING' in message:
+                log_data['warning_count'] += 1
+                
+            # Store events
+            masked_event = {
+                'timestamp': event.get('timestamp'),
+                'message': message
+            }
+            log_data['recent_events'].append(masked_event)
+            
+            # Store original for internal use (not exposed to LLM)
+            if mask_ips:
+                log_data['original_events'].append({
+                    'timestamp': event.get('timestamp'),
+                    'message': original_message
+                })
+                
     except Exception as e:
         logger.warning(f"Could not get logs: {str(e)}")
-        
-    # Add masking statistics
+    
+    # Add masking statistics if IP masking was applied
     if mask_ips and masker:
         log_data['masking_stats'] = masker.get_masking_stats()
         
@@ -182,25 +272,27 @@ def analyze_performance_incident(metrics_data, log_data):
     # Check memory metrics
     if 'MemoryUtilization' in metrics_data:
         mem_data = metrics_data['MemoryUtilization']['latest']
-        if mem_data.get('Maximum', 0) > 85:
-            analysis['evidence'].append(f"Memory usage at {mem_data['Maximum']:.1f}%")
+        if mem_data.get('Average', 0) > 85:
+            analysis['evidence'].append(f"Memory usage at {mem_data['Average']:.1f}%")
             if analysis['root_cause'] == 'Unknown':
-                analysis['root_cause'] = 'Memory exhaustion causing application slowdown'
-            analysis['recommendations'].append('Increase instance memory or optimize application memory usage')
+                analysis['root_cause'] = 'High memory consumption leading to performance issues'
+            analysis['impact'].append('Risk of out-of-memory errors')
+            analysis['recommendations'].append('Optimize memory usage or increase instance memory')
             
     # Check response times
     if 'ResponseTime' in metrics_data:
-        resp_data = metrics_data['ResponseTime']['latest']
-        if resp_data.get('Average', 0) > 2000:
-            analysis['evidence'].append(f"Response times averaged {resp_data['Average']:.0f}ms")
-            analysis['impact'].append('User experience significantly degraded')
+        rt_data = metrics_data['ResponseTime']['latest']
+        if rt_data.get('Average', 0) > 2000:  # 2 seconds
+            analysis['evidence'].append(f"Response time averaged {rt_data['Average']:.0f}ms")
+            if analysis['root_cause'] == 'Unknown':
+                analysis['root_cause'] = 'Slow response times indicating application bottleneck'
+            analysis['impact'].append('Poor user experience')
+            analysis['recommendations'].append('Profile application to identify bottlenecks')
             
-    # Check for specific log patterns
-    for event in log_data.get('recent_events', []):
-        if 'timeout' in str(event).lower():
-            analysis['evidence'].append('Database connection timeouts detected')
-            analysis['recommendations'].append('Review database connection pool settings')
-        if 'thread pool exhausted' in str(event).lower():
+    # Check error patterns in logs
+    if log_data.get('error_count', 0) > 10:
+        analysis['evidence'].append(f"Found {log_data['error_count']} errors in logs")
+        if 'thread' in str(log_data.get('error_messages', [])).lower():
             analysis['evidence'].append('Thread pool exhaustion detected')
             analysis['recommendations'].append('Increase thread pool size or implement request queuing')
             
@@ -228,64 +320,47 @@ def analyze_security_incident(log_data, incident_description):
             'Implement network ACLs as additional layer of security',
             'Set up CloudWatch alarms for security group changes'
         ])
-        
-    # Check for unauthorized access attempts
-    elif 'unauthorized' in desc_lower or 'attack' in desc_lower:
-        analysis['root_cause'] = 'Unauthorized access attempts detected'
-        analysis['evidence'].append('Multiple failed authentication attempts logged')
-        analysis['evidence'].append('Suspicious access patterns detected')
-        analysis['impact'].append('Potential security breach attempt')
-        analysis['impact'].append('Resource access may be compromised')
+    elif 'unauthorized' in desc_lower or 'authentication' in desc_lower:
+        analysis['root_cause'] = 'Authentication/Authorization failure detected'
+        analysis['evidence'].append('Multiple unauthorized access attempts')
+        analysis['impact'].append('Possible security breach attempt')
         analysis['recommendations'].extend([
-            'Enable AWS GuardDuty for real-time threat detection',
-            'Review and rotate all access credentials',
-            'Implement AWS WAF to block malicious requests',
-            'Enable MFA for all user accounts',
-            'Review CloudTrail logs for compromised credentials'
+            'Review IAM policies and access patterns',
+            'Enable MFA for all privileged accounts',
+            'Implement AWS CloudTrail for audit logging',
+            'Set up alerts for failed authentication attempts'
         ])
-        
-    # Check for API failures (additional evidence)
-    if 'api failures' in desc_lower or 'api' in desc_lower:
-        if analysis['root_cause'] == 'Unknown':
-            analysis['root_cause'] = 'API access failures indicating potential security issue'
-        analysis['evidence'].extend([
-            'Multiple API access failures detected',
-            'S3 bucket access denied errors',
-            'Lambda invocation failures'
+    elif 'ddos' in desc_lower or 'attack' in desc_lower:
+        analysis['root_cause'] = 'Potential DDoS or malicious attack detected'
+        analysis['evidence'].append('Abnormal traffic patterns observed')
+        analysis['impact'].append('Service availability at risk')
+        analysis['recommendations'].extend([
+            'Enable AWS Shield Advanced for DDoS protection',
+            'Implement rate limiting at application level',
+            'Use AWS WAF to filter malicious traffic',
+            'Consider CloudFront distribution for edge protection'
         ])
-        analysis['impact'].append('Potential security scan or unauthorized access attempt')
-        analysis['recommendations'].append('Review CloudTrail logs for source IPs and access patterns')
+    
+    # Check log patterns
+    if log_data.get('error_count', 0) > 50:
+        analysis['evidence'].append(f"High error rate ({log_data['error_count']} errors) indicating potential attack")
         
-    # Check log data for security patterns
-    if log_data and log_data.get('error_count', 0) > 0:
-        for error in log_data.get('error_messages', []):
-            if 'denied' in error.lower() or 'forbidden' in error.lower():
-                if analysis['root_cause'] == 'Unknown':
-                    analysis['root_cause'] = 'Access control violations detected'
-                analysis['evidence'].append(f'Access denied error: {error}')
-                
-    # Default security recommendations if still unknown
+    # Generic security recommendations if no specific pattern
     if analysis['root_cause'] == 'Unknown':
-        # For any security incident, we should provide a meaningful root cause
-        if 'unusual' in desc_lower or 'suspicious' in desc_lower or 'anomaly' in desc_lower:
-            analysis['root_cause'] = 'Unusual activity patterns detected requiring investigation'
-            analysis['evidence'].append('Anomalous behavior detected in system logs')
-            analysis['evidence'].append('Activity deviates from baseline patterns')
-        else:
-            analysis['root_cause'] = 'Security incident detected requiring immediate investigation'
-            analysis['evidence'].append('Security-related keywords detected in incident description')
-            
-        analysis['impact'].extend([
-            'Potential security risk to infrastructure',
-            'Compliance requirements may be affected'
+        analysis['root_cause'] = 'Security incident requires further investigation'
+        analysis['recommendations'].extend([
+            'Review recent CloudTrail events for anomalies',
+            'Check VPC Flow Logs for unusual network patterns',
+            'Verify all security groups and NACLs are properly configured',
+            'Enable GuardDuty if not already active'
         ])
         
-    # Ensure we always have some recommendations for security incidents
-    if not analysis['recommendations']:
+    # Always add these security best practices
+    if 'Enable continuous security monitoring' not in analysis['recommendations']:
         analysis['recommendations'].extend([
-            'Review CloudTrail logs for unauthorized activity',
-            'Check IAM policies and permissions',
-            'Enable AWS Config to track configuration changes',
+            'Enable continuous security monitoring',
+            'Implement principle of least privilege',
+            'Regular security audits and penetration testing',
             'Set up CloudWatch alarms for security events'
         ])
         
@@ -312,80 +387,52 @@ def analyze_outage_incident(metrics_data, log_data):
                 'Set up multi-AZ deployment for high availability',
                 'Create automated rollback procedures'
             ])
-    
-    # If no high error rate, check for other outage indicators
-    if analysis['root_cause'] == 'Unknown':
-        # Check CPU/Memory for resource exhaustion
-        if 'CPUUtilization' in metrics_data:
-            cpu_data = metrics_data['CPUUtilization']['latest']
-            if cpu_data.get('Maximum', 0) > 95:
-                analysis['root_cause'] = 'Service outage due to resource exhaustion'
-                analysis['evidence'].append(f"CPU at critical level: {cpu_data['Maximum']:.1f}%")
-                
-        if 'MemoryUtilization' in metrics_data:
-            mem_data = metrics_data['MemoryUtilization']['latest']
-            if mem_data.get('Maximum', 0) > 95:
-                if analysis['root_cause'] == 'Unknown':
-                    analysis['root_cause'] = 'Service outage due to memory exhaustion'
-                analysis['evidence'].append(f"Memory at critical level: {mem_data['Maximum']:.1f}%")
-                
-    # Check for critical errors in logs
-    if log_data['error_count'] > 5:
+            
+    # Check if all metrics are missing (complete outage)
+    metrics_available = sum(1 for m in metrics_data.values() if m)
+    if metrics_available < 2:
+        analysis['evidence'].append('Limited metrics available - possible complete outage')
         if analysis['root_cause'] == 'Unknown':
-            analysis['root_cause'] = 'Service outage due to application errors'
-        analysis['evidence'].append(f"{log_data['error_count']} critical errors in logs")
-        for error_msg in log_data['error_messages'][:3]:
-            analysis['evidence'].append(f"Error: {error_msg}")
-            
-    # Check for service unavailable patterns
-    for event in log_data.get('recent_events', []):
-        if event.get('status_code') == 503:
-            if analysis['root_cause'] == 'Unknown':
-                analysis['root_cause'] = 'Service returning 503 Service Unavailable errors'
-            analysis['evidence'].append('Service returning 503 errors')
-            analysis['impact'].append('Complete service unavailability')
-        elif event.get('level') == 'FATAL':
-            if analysis['root_cause'] == 'Unknown':
-                analysis['root_cause'] = 'Fatal application error causing service outage'
-            analysis['evidence'].append(f"Fatal error: {event.get('message', 'Unknown')}")
-            
-    # If still unknown but we have evidence, provide general outage diagnosis
-    if analysis['root_cause'] == 'Unknown' and (analysis['evidence'] or log_data['error_count'] > 0):
-        analysis['root_cause'] = 'Service outage detected - requires immediate investigation'
-        analysis['evidence'].append('Service health checks failing')
-        
-    # Ensure we have impact assessment
-    if not analysis['impact']:
-        analysis['impact'].extend([
-            'Users unable to access the service',
-            'Business operations disrupted',
-            'Potential data processing backlog'
-        ])
-        
-    # Ensure we have recommendations
-    if not analysis['recommendations']:
+            analysis['root_cause'] = 'Complete service outage - infrastructure failure'
+        analysis['impact'].append('Total service unavailability')
         analysis['recommendations'].extend([
-            'Restart affected services immediately',
-            'Check application logs for root cause',
-            'Verify database connectivity',
-            'Review recent deployments or configuration changes',
-            'Implement health check monitoring',
-            'Set up automated failover mechanisms'
+            'Implement health checks across all layers',
+            'Set up automated failover mechanisms',
+            'Create disaster recovery runbooks'
         ])
-            
+        
+    # Check for database-related issues
+    error_messages = ' '.join(log_data.get('error_messages', [])).lower()
+    if 'database' in error_messages or 'connection' in error_messages:
+        analysis['evidence'].append('Database connectivity issues detected')
+        if analysis['root_cause'] == 'Unknown':
+            analysis['root_cause'] = 'Database connection failure causing service outage'
+        analysis['impact'].append('Data layer unavailable')
+        analysis['recommendations'].extend([
+            'Implement database connection pooling',
+            'Set up read replicas for failover',
+            'Monitor RDS performance metrics'
+        ])
+        
     return analysis
 
 def get_knowledge_base_context(incident_description, incident_type):
-    """Query knowledge base for relevant context."""
+    """Query knowledge base for similar incidents and resolutions."""
     try:
+        kb_lambda = 'knowledge-base-lambda'
+        
+        # Query for similar incidents
+        payload = {
+            'action': 'semantic_search',
+            'query': incident_description,
+            'type': 'incident',
+            'limit': 3
+        }
+        
         response = lambda_client.invoke(
-            FunctionName='sre-knowledge-base-agent-lambda',
+            FunctionName=kb_lambda,
             InvocationType='RequestResponse',
-            Payload=json.dumps({
-                'action': 'analyze_with_context',
-                'incident_description': incident_description,
-                'incident_type': incident_type
-            })
+            Payload=json.dumps(payload)
         )
         
         result = json.loads(response['Payload'].read())
@@ -393,17 +440,56 @@ def get_knowledge_base_context(incident_description, incident_type):
         if result.get('statusCode') == 200:
             body = json.loads(result['body'])
             return {
-                'similar_incidents': body.get('results', [])[:3],
-                'kb_analysis': body.get('analysis', ''),
-                'context_used': body.get('context_used', {})
+                'similar_incidents': body.get('results', []),
+                'suggested_resolution': body.get('results', [{}])[0].get('resolution') if body.get('results') else None
             }
     except Exception as e:
-        logger.warning(f"Could not get KB context: {str(e)}")
+        logger.warning(f"Could not query knowledge base: {str(e)}")
         
     return {}
 
+def invoke_monitoring_agent(agent_name, action, params=None):
+    """Invoke a monitoring agent Lambda function."""
+    try:
+        payload = {'action': action}
+        if params:
+            payload.update(params)
+        
+        response = lambda_client.invoke(
+            FunctionName=f'sre-{agent_name}-lambda',
+            InvocationType='RequestResponse',
+            Payload=json.dumps(payload)
+        )
+        
+        result = json.loads(response['Payload'].read())
+        if result.get('statusCode') == 200:
+            body = json.loads(result['body']) if isinstance(result['body'], str) else result['body']
+            return {'success': True, 'data': body}
+        else:
+            return {'success': False, 'error': result.get('body', 'Unknown error')}
+            
+    except Exception as e:
+        logger.error(f"Error invoking {agent_name}: {str(e)}")
+        return {'success': False, 'error': str(e)}
+
 def generate_root_cause_analysis(incident_type, incident_description, metrics_data, log_data, kb_context=None):
     """Generate specific root cause analysis based on incident type and data."""
+    
+    # First try AI-powered analysis
+    context_data = {
+        'metrics_data': metrics_data,
+        'log_data': log_data,
+        'kb_context': kb_context or {}
+    }
+    
+    ai_analysis = analyze_with_bedrock(incident_description, context_data, incident_type)
+    
+    if ai_analysis:
+        # AI analysis succeeded, return it
+        return ai_analysis
+    
+    # Fallback to rule-based analysis if AI fails
+    logger.warning("AI analysis failed, falling back to rule-based analysis")
     
     if incident_type == 'performance':
         analysis = analyze_performance_incident(metrics_data, log_data)
@@ -426,42 +512,35 @@ def generate_root_cause_analysis(incident_type, incident_description, metrics_da
 ### Identified Root Cause
 **{analysis['root_cause']}**
 
-### Evidence
-{chr(10).join(f"- {e}" for e in analysis['evidence'])}
+### Evidence Found
+{chr(10).join('- ' + e for e in analysis['evidence'])}
 
 ### Impact Assessment
-{chr(10).join(f"- {i}" for i in analysis['impact'])}
+{chr(10).join('- ' + i for i in analysis['impact'])}
 
-### Timeline
-- T-30min: Normal operation
-- T-15min: First signs of degradation
-- T-10min: {analysis['evidence'][0] if analysis['evidence'] else 'Issue detected'}
-- T-5min: Incident escalated
-- T-0min: Analysis initiated
+### Immediate Mitigation Steps
+{chr(10).join(f'{i+1}. {r}' for i, r in enumerate(analysis['recommendations'][:3]))}
 
-### Recommendations
-
-#### Immediate Actions
-{chr(10).join(f"{i+1}. {r}" for i, r in enumerate(analysis['recommendations'][:2]))}
-
-#### Long-term Improvements
-{chr(10).join(f"{i+1}. {r}" for i, r in enumerate(analysis['recommendations'][2:]))}
-
-### Correlation Summary
-This analysis correlated data from:
-- CloudWatch Metrics: {len(metrics_data)} metrics analyzed
-- CloudWatch Logs: {log_data['error_count']} errors, {log_data['warning_count']} warnings found
-- Incident Type: {incident_type.capitalize()} incident pattern detected
+### Long-term Recommendations
+{chr(10).join(f'{i+1}. {r}' for i, r in enumerate(analysis['recommendations'][3:]))}
 """
-    
-    # Add knowledge base context if available
-    if kb_context and kb_context.get('kb_analysis'):
-        analysis_text += f"\n\n{kb_context['kb_analysis']}"
+
+    # Add KB context if available
+    if kb_context and kb_context.get('similar_incidents'):
+        analysis_text += f"""
+### Similar Past Incidents
+Found {len(kb_context['similar_incidents'])} similar incidents in knowledge base.
+"""
+        if kb_context.get('suggested_resolution'):
+            analysis_text += f"""
+**Suggested Resolution from KB:**
+{kb_context['suggested_resolution']}
+"""
     
     return analysis_text
 
 def lambda_handler(event, context):
-    """Enhanced Lambda handler for supervisor agent."""
+    """Enhanced Lambda handler for supervisor agent with AI-powered analysis."""
     try:
         logger.info(f"Received event: {json.dumps(event)}")
         
@@ -492,9 +571,9 @@ def lambda_handler(event, context):
             logger.info("Querying knowledge base for context...")
             kb_context = get_knowledge_base_context(incident_description, incident_type)
         
-        # Generate specific root cause analysis
+        # Generate comprehensive root cause analysis
         logger.info("Generating root cause analysis...")
-        analysis = generate_root_cause_analysis(
+        root_cause_analysis = generate_root_cause_analysis(
             incident_type, 
             incident_description, 
             metrics_data, 
@@ -502,68 +581,49 @@ def lambda_handler(event, context):
             kb_context
         )
         
-        # Prepare response
-        response_body = {
-            'analysis': analysis,
+        # Build final response
+        response_data = {
             'incident_type': incident_type,
-            'monitoring_data': {
-                'metrics': {k: {
-                    'Average': v['latest'].get('Average', 0),
-                    'Maximum': v['latest'].get('Maximum', 0),
-                    'Minimum': v['latest'].get('Minimum', 0)
-                } for k, v in metrics_data.items()},
-                'logs': {
-                    'error_count': log_data['error_count'],
-                    'warning_count': log_data['warning_count'],
-                    'sample_errors': log_data['error_messages'][:3],
-                    'ip_masking_applied': log_data.get('ip_masking_applied', False),
-                    'masked_ip_count': log_data.get('masked_ip_count', 0),
-                    'masking_stats': log_data.get('masking_stats', {})
-                }
+            'incident_description': incident_description,
+            'root_cause_analysis': root_cause_analysis,
+            'metrics_summary': {
+                metric: {
+                    'latest_value': data['latest'].get('Average', 0) if data else 0,
+                    'max_value': data['latest'].get('Maximum', 0) if data else 0
+                } for metric, data in metrics_data.items()
             },
-            'metadata': {
-                'analysis_time': datetime.utcnow().isoformat(),
-                'service': service,
-                'environment': environment,
-                'ops_item_id': additional_context.get('ops_item_id'),
-                'security': {
-                    'ip_masking_enabled': mask_ips,
-                    'masked_ip_count': log_data.get('masked_ip_count', 0)
-                }
-            }
+            'log_summary': {
+                'error_count': log_data.get('error_count', 0),
+                'warning_count': log_data.get('warning_count', 0),
+                'sample_errors': log_data.get('error_messages', [])[:3]
+            },
+            'knowledge_base_insights': {
+                'similar_incidents_found': len(kb_context.get('similar_incidents', [])),
+                'has_suggested_resolution': bool(kb_context.get('suggested_resolution'))
+            },
+            'timestamp': datetime.utcnow().isoformat(),
+            'service': service,
+            'environment': environment
         }
+        
+        # Add IP masking stats if available
+        if mask_ips and 'masking_stats' in log_data:
+            response_data['ip_masking_stats'] = log_data['masking_stats']
+        
+        logger.info("Analysis complete - returning results")
         
         return {
             'statusCode': 200,
-            'body': json.dumps(response_body)
+            'body': json.dumps(response_data)
         }
         
     except Exception as e:
-        logger.error(f"Error in supervisor handler: {str(e)}")
-        
-        # Return a meaningful error response
+        logger.error(f"Error in supervisor lambda: {str(e)}", exc_info=True)
         return {
-            'statusCode': 200,
+            'statusCode': 500,
             'body': json.dumps({
-                'analysis': f"""
-## Root Cause Analysis
-
-### Error During Analysis
-An error occurred while analyzing the incident: {str(e)}
-
-### Fallback Analysis
-Based on the incident description: {event.get('incident_description', 'No description')}
-
-The system is experiencing issues that require investigation. Please check:
-1. CloudWatch Logs for error patterns
-2. CloudWatch Metrics for anomalies
-3. AWS Health Dashboard for service issues
-4. Security groups for recent changes
-
-### Note
-This is a fallback response. The full analysis requires proper AWS permissions and Bedrock model access.
-""",
-                'incident_type': 'unknown',
-                'error': str(e)
+                'error': f'Analysis failed: {str(e)}',
+                'incident_description': incident_description,
+                'timestamp': datetime.utcnow().isoformat()
             })
         }

@@ -1,0 +1,33 @@
+{
+  "lambda_functions": {
+    "sre-supervisor-lambda": true,
+    "sre-cloudtrail-agent-lambda": true,
+    "sre-vpc-agent-lambda": true,
+    "sre-vpc-flow-logs-agent-lambda": true,
+    "sre-trusted-advisor-agent-lambda": true,
+    "sre-personal-health-agent-lambda": true,
+    "sre-cloudwatch-logs-agent-lambda": true,
+    "sre-log-analyzer-lambda": false,
+    "sre-metrics-analyzer-lambda": false,
+    "sre-knowledge-base-agent-lambda": true,
+    "sre-opsitem-indexer-lambda": true
+  },
+  "bedrock_agents": {
+    "SRE-Supervisor": false,
+    "SRE-CloudTrail-Analyzer": false,
+    "SRE-VPC-Analyzer": false,
+    "SRE-Trusted-Advisor-Analyzer": false,
+    "SRE-Personal-Health-Analyzer": false,
+    "SRE-CloudWatch-Logs-Analyzer": false,
+    "SRE-VPC-Flow-Logs-Analyzer": false
+  },
+  "iam_roles": {
+    "sre-lambda-role": true
+  },
+  "dynamodb_tables": {
+    "sre-knowledge-base": true,
+    "sre-knowledge-base-vectors": true
+  },
+  "cloudwatch_logs": {},
+  "overall_status": "PENDING"
+}

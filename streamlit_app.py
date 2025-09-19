@@ -860,7 +860,10 @@ class EnhancedSREDashboard:
                     st.session_state.last_analysis_debug = {
                         'ops_item_id': ops_item_id,
                         'analysis_keys': list(analysis_result.keys()) if analysis_result else [],
-                        'has_error': 'error' in analysis_result
+                        'has_error': 'error' in analysis_result,
+                        'root_cause': analysis_result.get('root_cause', 'Not extracted'),
+                        'has_ai_analysis': 'ai_analysis' in analysis_result,
+                        'ai_analysis_length': len(analysis_result.get('ai_analysis', '')) if 'ai_analysis' in analysis_result else 0
                     }
                     
                     st.session_state.current_incident = incident_data
@@ -1012,8 +1015,76 @@ class EnhancedSREDashboard:
         
         # Extract information from the response
         if isinstance(response, dict):
-            # Look for analysis results
-            if 'analysis' in response:
+            # Look for root_cause_analysis results from the supervisor lambda
+            if 'root_cause_analysis' in response:
+                root_cause_data = response['root_cause_analysis']
+                
+                # Handle the AI analysis response format
+                if isinstance(root_cause_data, str):
+                    # If it's a string, it's the full AI analysis text
+                    analysis['ai_analysis'] = root_cause_data
+                    
+                    # Extract root cause from the AI text
+                    if 'root cause' in root_cause_data.lower():
+                        # Try to extract the actual root cause from the text
+                        import re
+                        
+                        # Try multiple patterns to extract root cause
+                        root_cause_text = None
+                        
+                        # Pattern 1: Look for "Root Cause Analysis" section with content on next line
+                        pattern1 = r'\*\*Root Cause Analysis\*\*:\s*\n?(.+?)(?=\n\n|\n\d+\.|\Z)'
+                        match1 = re.search(pattern1, root_cause_data, re.DOTALL)
+                        if match1:
+                            root_cause_text = match1.group(1).strip()
+                        
+                        # Pattern 2: Look for numbered section "1. **Root Cause Analysis**:"
+                        if not root_cause_text:
+                            pattern2 = r'1\.\s*\*\*Root Cause Analysis\*\*:\s*\n?(.+?)(?=\n\n|\n\d+\.|\Z)'
+                            match2 = re.search(pattern2, root_cause_data, re.DOTALL)
+                            if match2:
+                                root_cause_text = match2.group(1).strip()
+                        
+                        # Pattern 3: Look for any "root cause" mention and get the sentence
+                        if not root_cause_text:
+                            pattern3 = r'root cause[^.]*?is\s+([^.]+\.)'
+                            match3 = re.search(pattern3, root_cause_data, re.IGNORECASE)
+                            if match3:
+                                root_cause_text = match3.group(1).strip()
+                        
+                        # If we found root cause text, clean it up
+                        if root_cause_text:
+                            # Take only the first sentence if it's too long
+                            first_sentence = root_cause_text.split('. ')[0]
+                            if first_sentence:
+                                root_cause_text = first_sentence + '.' if not first_sentence.endswith('.') else first_sentence
+                            
+                            # Clean up markdown and extra whitespace
+                            root_cause_text = root_cause_text.replace('**', '').replace('*', '').strip()
+                            
+                            # Limit length for display
+                            if len(root_cause_text) > 200:
+                                root_cause_text = root_cause_text[:197] + '...'
+                                
+                            analysis['root_cause'] = root_cause_text
+                        else:
+                            # If we couldn't extract specific text, use a generic message
+                            analysis['root_cause'] = "Root cause identified in analysis (see full analysis below)"
+                elif isinstance(root_cause_data, dict):
+                    # If it's a dict, it might be from the fallback analysis
+                    if 'root_cause' in root_cause_data:
+                        analysis['root_cause'] = root_cause_data['root_cause']
+                    if 'evidence' in root_cause_data:
+                        analysis['contributing_factors'] = root_cause_data.get('evidence', [])
+                    if 'recommendations' in root_cause_data:
+                        analysis['recommendations'] = root_cause_data.get('recommendations', [])
+                    if 'impact' in root_cause_data:
+                        analysis['affected_services'] = root_cause_data.get('impact', [])
+                    # Store the full analysis
+                    analysis['ai_analysis'] = json.dumps(root_cause_data, indent=2)
+                    
+            # Backwards compatibility - also check for 'analysis' field
+            elif 'analysis' in response:
                 ai_text = response['analysis']
                 analysis['ai_analysis'] = ai_text
                 
@@ -1021,6 +1092,16 @@ class EnhancedSREDashboard:
                 if 'root cause' in ai_text.lower():
                     analysis['root_cause'] = "Identified from AI analysis"
                     
+            # Extract additional data from response
+            if 'metrics_summary' in response:
+                analysis['metrics_summary'] = response['metrics_summary']
+                
+            if 'log_summary' in response:
+                analysis['log_summary'] = response['log_summary']
+                
+            if 'knowledge_base_insights' in response:
+                analysis['kb_insights'] = response['knowledge_base_insights']
+                
             # Extract agent findings
             if 'agent_results' in response:
                 analysis['agent_findings'] = response['agent_results']

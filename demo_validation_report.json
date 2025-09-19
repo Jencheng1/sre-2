@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-09-19T13:05:33.006985",
+  "passed": 16,
+  "failed": 3,
+  "pass_rate": 84.21052631578947,
+  "issues": [
+    "KB Add Item: Failed to add item",
+    "KB Search: Search failed",
+    "Incident Type Detection: Detected: general"
+  ],
+  "demo_ready": false
+}

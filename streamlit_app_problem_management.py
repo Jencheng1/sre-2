@@ -1016,14 +1016,44 @@ class EnhancedSREDashboard:
         
         # Extract information from the response
         if isinstance(response, dict):
-            # Look for analysis results
-            if 'analysis' in response:
-                ai_text = response['analysis']
+            # Look for analysis results - check both 'root_cause_analysis' and 'analysis' fields
+            ai_text = response.get('root_cause_analysis', response.get('analysis', ''))
+            if ai_text:
                 analysis['ai_analysis'] = ai_text
                 
-                # Extract root cause
-                if 'root cause' in ai_text.lower():
-                    analysis['root_cause'] = "Identified from AI analysis"
+                # Extract root cause from AI text
+                import re
+                
+                # Try to extract the actual root cause from various formats
+                root_cause = "Analysis in progress..."
+                
+                # Pattern 1: Look for text after "Root Cause Analysis:" or "Identified Root Cause:"
+                patterns = [
+                    r'(?:Root Cause Analysis|Identified Root Cause)[:\s]+\*?\*?([^*\n]+)',
+                    r'root cause[:\s]+([^.\n]+)',
+                    r'1\.\s*\*?\*?Root Cause[:\s]+([^*\n]+)'
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, ai_text, re.IGNORECASE)
+                    if match:
+                        root_cause = match.group(1).strip()
+                        # Get first sentence only
+                        if '. ' in root_cause:
+                            root_cause = root_cause.split('. ')[0] + '.'
+                        break
+                
+                # If no pattern matched but we have AI text, use a summary
+                if root_cause == "Analysis in progress..." and len(ai_text) > 50:
+                    # Extract first meaningful sentence after any headers
+                    lines = ai_text.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if line and not line.startswith('#') and not line.startswith('*') and len(line) > 20:
+                            root_cause = line.split('. ')[0] + '.'
+                            break
+                
+                analysis['root_cause'] = root_cause
                     
             # Extract agent findings
             if 'agent_results' in response:

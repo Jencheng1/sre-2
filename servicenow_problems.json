@@ -36,5 +36,195 @@
     ],
     "root_cause": "Under investigation",
     "workaround": "None available"
+  },
+  {
+    "id": "PRB20250814160501",
+    "created": "2025-08-14T16:05:01.159070",
+    "short_description": "Problem from incident",
+    "description": "\u2705 Created change-correlated incident: oi-4757d345ed8e (Related to change: oi-5a0634c9bb2d)",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Unknown",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      "oi-4757d345ed8e"
+    ],
+    "root_cause": "Under investigation",
+    "workaround": "None available"
+  },
+  {
+    "id": "PRB20250814162028",
+    "created": "2025-08-14T16:20:28.810256",
+    "short_description": "Problem from incident",
+    "description": "\u2705 Created security incident: oi-9ef34c280694 requiring VPC Flow Logs and CloudTrail correlation",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      "oi-9ef34c280694"
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
+  },
+  {
+    "id": "PRB20250814180522",
+    "created": "2025-08-14T18:05:22.195038",
+    "short_description": "Problem from incident",
+    "description": "Automated incident generated for performance scenario. Components affected: Generated 5 high load metrics, Generated 5 performance warning logs",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      "oi-9081a5987832"
+    ],
+    "root_cause": "Performance degradation likely due to resource constraints or inefficient queries",
+    "workaround": "Monitor resource usage and consider scaling or query optimization"
+  },
+  {
+    "id": "PRB20250818103644",
+    "created": "2025-08-18T10:36:44.146158",
+    "short_description": "Problem from incident",
+    "description": "CPU usage exceeded 90%",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      ""
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
+  },
+  {
+    "id": "PRB20250818103803",
+    "created": "2025-08-18T10:38:03.320815",
+    "short_description": "Problem from incident",
+    "description": "CPU usage exceeded 90%",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      ""
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
+  },
+  {
+    "id": "PRB20250818103939",
+    "created": "2025-08-18T10:39:39.429784",
+    "short_description": "Problem from incident",
+    "description": "CPU usage exceeded 90%",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      ""
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
+  },
+  {
+    "id": "PRB20250818104144",
+    "created": "2025-08-18T10:41:44.116095",
+    "short_description": "Problem from incident",
+    "description": "CPU usage exceeded 90%",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      ""
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
+  },
+  {
+    "id": "PRB20250818104212",
+    "created": "2025-08-18T10:42:12.516394",
+    "short_description": "Problem from incident",
+    "description": "CPU usage exceeded 90%",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      ""
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
+  },
+  {
+    "id": "PRB20250818104228",
+    "created": "2025-08-18T10:42:28.446689",
+    "short_description": "Problem from incident",
+    "description": "CPU usage exceeded 90%",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      ""
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
+  },
+  {
+    "id": "PRB20250818104316",
+    "created": "2025-08-18T10:43:16.656739",
+    "short_description": "Problem from incident",
+    "description": "CPU usage exceeded 90%",
+    "priority": "ProblemPriority.MEDIUM",
+    "state": "ProblemState.NEW",
+    "category": "Application",
+    "assigned_to": null,
+    "assignment_group": null,
+    "impact": "3",
+    "urgency": "3",
+    "correlation_id": null,
+    "related_incidents": [
+      ""
+    ],
+    "root_cause": "Root cause requires further investigation based on incident patterns",
+    "workaround": "Collect additional logs and metrics for analysis"
   }
 ]
