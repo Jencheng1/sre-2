@@ -1,0 +1,7 @@
+{
+  "timestamp": "2025-09-27T11:39:27.042013",
+  "test": "EC2 CPU Data in Grafana",
+  "success": false,
+  "grafana_url": "http://localhost:3000",
+  "dashboard_url": "http://localhost:3000/d/ec2-cpu-host-network"
+}

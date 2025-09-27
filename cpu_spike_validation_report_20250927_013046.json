@@ -1,0 +1,184 @@
+{
+  "timestamp": "2025-09-27T01:30:46.474221",
+  "readiness_percent": 77.27272727272727,
+  "summary": {
+    "passed": 17,
+    "failed": 0,
+    "warned": 5
+  },
+  "results": [
+    {
+      "component": "AWS Credentials",
+      "status": "PASS",
+      "message": "Valid credentials for account 637423485585",
+      "details": {
+        "UserId": "AROAZI2LGQKIX2SZGYTJN:i-05ad220ef77a67ca7",
+        "Account": "637423485585",
+        "Arn": "arn:aws:sts::637423485585:assumed-role/intelligentmq-ec2-role/i-05ad220ef77a67ca7",
+        "ResponseMetadata": {
+          "RequestId": "251c9c98-05c4-45b0-93c2-1346a329db59",
+          "HTTPStatusCode": 200,
+          "HTTPHeaders": {
+            "x-amzn-requestid": "251c9c98-05c4-45b0-93c2-1346a329db59",
+            "x-amz-sts-extended-request-id": "MTp1cy1lYXN0LTE6MTc1ODkzNjY0NTE0ODpHOmtLZW1JdDZZ",
+            "content-type": "text/xml",
+            "content-length": "467",
+            "date": "Sat, 27 Sep 2025 01:30:45 GMT"
+          },
+          "RetryAttempts": 0
+        }
+      },
+      "timestamp": "2025-09-27T01:30:45.165113"
+    },
+    {
+      "component": "AWS EC2 Access",
+      "status": "PASS",
+      "message": "Can access ec2 service",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.383317"
+    },
+    {
+      "component": "AWS SSM Access",
+      "status": "PASS",
+      "message": "Can access ssm service",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.521429"
+    },
+    {
+      "component": "AWS CLOUDWATCH Access",
+      "status": "PASS",
+      "message": "Can access cloudwatch service",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.696329"
+    },
+    {
+      "component": "Docker",
+      "status": "PASS",
+      "message": "Docker daemon is running",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.721687"
+    },
+    {
+      "component": "Docker sre-grafana",
+      "status": "PASS",
+      "message": "Container is running",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.751010"
+    },
+    {
+      "component": "Service Port 3000",
+      "status": "PASS",
+      "message": "Port 3000 is accessible",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.767673"
+    },
+    {
+      "component": "Docker sre-prometheus",
+      "status": "PASS",
+      "message": "Container is running",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.791580"
+    },
+    {
+      "component": "Service Port 9090",
+      "status": "PASS",
+      "message": "Port 9090 is accessible",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.803842"
+    },
+    {
+      "component": "Docker sre-node-exporter",
+      "status": "PASS",
+      "message": "Container is running",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.845412"
+    },
+    {
+      "component": "Service Port 9100",
+      "status": "PASS",
+      "message": "Port 9100 is accessible",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.851310"
+    },
+    {
+      "component": "Grafana Health",
+      "status": "PASS",
+      "message": "Grafana is healthy",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.855768"
+    },
+    {
+      "component": "Grafana Datasources",
+      "status": "PASS",
+      "message": "Found 2 datasources",
+      "details": [
+        "CloudWatch",
+        "Prometheus"
+      ],
+      "timestamp": "2025-09-27T01:30:45.895270"
+    },
+    {
+      "component": "Streamlit Health",
+      "status": "PASS",
+      "message": "Streamlit is running",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.901230"
+    },
+    {
+      "component": "Streamlit CPU Demo",
+      "status": "PASS",
+      "message": "CPU Spike Demo should be available in Advanced Tools",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:45.901281"
+    },
+    {
+      "component": "EC2 Discovery",
+      "status": "WARN",
+      "message": "Found 0 EC2 instances",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:46.033009"
+    },
+    {
+      "component": "SSM-Enabled Instances",
+      "status": "WARN",
+      "message": "Found 0 instances with SSM agent",
+      "details": [],
+      "timestamp": "2025-09-27T01:30:46.033042"
+    },
+    {
+      "component": "SSM Setup",
+      "status": "WARN",
+      "message": "No SSM-enabled instances found",
+      "details": "CPU spike demo requires at least one EC2 instance with SSM agent",
+      "timestamp": "2025-09-27T01:30:46.033049"
+    },
+    {
+      "component": "CloudWatch Metrics",
+      "status": "WARN",
+      "message": "No instances to test metrics",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:46.126723"
+    },
+    {
+      "component": "SSM Service",
+      "status": "PASS",
+      "message": "SSM service is accessible",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:46.268428"
+    },
+    {
+      "component": "SSM Command Execution",
+      "status": "WARN",
+      "message": "No SSM-enabled instances to test",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:46.376722"
+    },
+    {
+      "component": "Supervisor Lambda",
+      "status": "PASS",
+      "message": "sre-supervisor-lambda exists and is accessible",
+      "details": null,
+      "timestamp": "2025-09-27T01:30:46.472239"
+    }
+  ]
+}

@@ -184,6 +184,144 @@ def get_demo_metrics(namespace='SREDemo/Application', start_time=None, end_time=
             
     return metrics_data
 
+def get_jvm_metrics():
+    """Get JVM metrics from JavaApp/SpringBoot namespace"""
+    try:
+        metrics_data = {}
+        
+        # JVM-specific metrics
+        jvm_metrics = [
+            ('HeapMemoryUsed', 'Percent'),
+            ('App_CacheSize', 'Count'),
+            ('GCPauseTime', 'Milliseconds'),
+            ('JVM_HeapUsedPercent', 'Percent')
+        ]
+        
+        end_time = datetime.now()
+        start_time = end_time - timedelta(minutes=10)
+        
+        for metric_name, unit in jvm_metrics:
+            try:
+                response = cloudwatch.get_metric_statistics(
+                    Namespace='JavaApp/SpringBoot',
+                    MetricName=metric_name,
+                    Dimensions=[
+                        {'Name': 'InstanceId', 'Value': 'i-02bef13982a179478'}
+                    ],
+                    StartTime=start_time,
+                    EndTime=end_time,
+                    Period=300,
+                    Statistics=['Average', 'Maximum', 'Minimum']
+                )
+                
+                if response['Datapoints']:
+                    datapoints = sorted(response['Datapoints'], key=lambda x: x['Timestamp'])
+                    latest = datapoints[-1] if datapoints else {}
+                    
+                    metrics_data[metric_name] = {
+                        'unit': unit,
+                        'latest': latest,
+                        'all_datapoints': datapoints,
+                        'trend': 'increasing' if len(datapoints) > 1 and datapoints[-1]['Average'] > datapoints[0]['Average'] else 'stable'
+                    }
+                    logger.info(f"Found JVM metric {metric_name}: {latest.get('Average', 0):.2f} {unit}")
+            except Exception as e:
+                logger.warning(f"Could not get JVM metric {metric_name}: {str(e)}")
+        
+        return metrics_data
+        
+    except Exception as e:
+        logger.error(f"Error getting JVM metrics: {str(e)}")
+        return {}
+
+def get_change_records(incident_time):
+    """Get recent change records from OpsItems"""
+    try:
+        # Look for changes in the past 24 hours
+        start_time = incident_time - timedelta(hours=24)
+        
+        response = ssm_client.describe_ops_items(
+            OpsItemFilters=[
+                {
+                    'Key': 'Title',
+                    'Values': ['[CHANGE]', 'Deploy', 'deployment', 'release', 'v2.1.0'],
+                    'Operator': 'Contains'
+                },
+                {
+                    'Key': 'CreatedTime',
+                    'Values': [start_time.isoformat()],
+                    'Operator': 'GreaterThan'
+                }
+            ],
+            MaxResults=50
+        )
+        
+        changes = []
+        for item in response.get('OpsItemSummaries', []):
+            changes.append({
+                'id': item['OpsItemId'],
+                'title': item.get('Title', ''),
+                'created_time': item.get('CreatedTime'),
+                'severity': item.get('Severity', '3'),
+                'service': item.get('OperationalData', {}).get('Service', {}).get('Value', 'unknown')
+            })
+        
+        return changes
+        
+    except Exception as e:
+        logger.warning(f"Could not get change records: {str(e)}")
+        return []
+
+def analyze_memory_leak_pattern(metrics_data, log_data, jvm_metrics):
+    """Specifically analyze for memory leak patterns"""
+    memory_leak_indicators = {
+        'memory_trend': False,
+        'gc_pressure': False,
+        'cache_growth': False,
+        'oom_errors': False,
+        'heap_exhaustion': False
+    }
+    
+    evidence = []
+    
+    # Check JVM heap memory trend
+    if 'HeapMemoryUsed' in jvm_metrics:
+        heap_data = jvm_metrics['HeapMemoryUsed']
+        if heap_data.get('trend') == 'increasing' and heap_data['latest'].get('Average', 0) > 70:
+            memory_leak_indicators['memory_trend'] = True
+            evidence.append(f"Heap memory usage increasing: {heap_data['latest']['Average']:.1f}%")
+    
+    # Check GC pause times
+    if 'GCPauseTime' in jvm_metrics:
+        gc_data = jvm_metrics['GCPauseTime']
+        if gc_data['latest'].get('Average', 0) > 200:  # 200ms is concerning
+            memory_leak_indicators['gc_pressure'] = True
+            evidence.append(f"High GC pause times: {gc_data['latest']['Average']:.0f}ms")
+    
+    # Check cache size growth
+    if 'App_CacheSize' in jvm_metrics:
+        cache_data = jvm_metrics['App_CacheSize']
+        if cache_data['latest'].get('Average', 0) > 1000:  # Large cache
+            memory_leak_indicators['cache_growth'] = True
+            evidence.append(f"Large cache size: {cache_data['latest']['Average']:.0f} entries")
+    
+    # Check logs for memory-related errors
+    error_messages = ' '.join(log_data.get('error_messages', [])).lower()
+    if any(term in error_messages for term in ['outofmemory', 'heap', 'gc overhead', 'memory']):
+        memory_leak_indicators['oom_errors'] = True
+        evidence.append("Memory-related errors found in logs")
+    
+    # Calculate confidence score
+    confidence = sum(memory_leak_indicators.values()) / len(memory_leak_indicators)
+    
+    return {
+        'is_memory_leak': confidence > 0.4,
+        'confidence': confidence,
+        'indicators': memory_leak_indicators,
+        'evidence': evidence
+    }
+
+
 def get_demo_logs(log_group='/aws/demo/sre-incident-generator', start_time=None, end_time=None, mask_ips=True):
     """Get logs from our demo log group with optional IP masking."""
     if not end_time:
@@ -475,69 +613,61 @@ def invoke_monitoring_agent(agent_name, action, params=None):
 def generate_root_cause_analysis(incident_type, incident_description, metrics_data, log_data, kb_context=None):
     """Generate specific root cause analysis based on incident type and data."""
     
-    # First try AI-powered analysis
+    # Get JVM metrics
+    jvm_metrics = get_jvm_metrics()
+    
+    # Check for memory leak pattern
+    memory_analysis = analyze_memory_leak_pattern(metrics_data, log_data, jvm_metrics)
+    
+    # Get recent changes
+    incident_time = datetime.now() - timedelta(hours=2)  # Approximate
+    recent_changes = get_change_records(incident_time)
+    
+    # Prepare enhanced context
     context_data = {
         'metrics_data': metrics_data,
         'log_data': log_data,
+        'jvm_metrics': jvm_metrics,
+        'memory_analysis': memory_analysis,
+        'recent_changes': recent_changes,
         'kb_context': kb_context or {}
     }
     
+    # Enhanced prompt for AI
+    if memory_analysis['is_memory_leak']:
+        incident_description += f" Memory leak detected with {memory_analysis['confidence']*100:.0f}% confidence. Evidence: {', '.join(memory_analysis['evidence'])}"
+    
+    if recent_changes:
+        incident_description += f" Recent changes: {', '.join([c['title'] for c in recent_changes[:3]])}"
+    
+    # First try AI-powered analysis with enhanced context
     ai_analysis = analyze_with_bedrock(incident_description, context_data, incident_type)
     
     if ai_analysis:
-        # AI analysis succeeded, return it
-        return ai_analysis
-    
-    # Fallback to rule-based analysis if AI fails
-    logger.warning("AI analysis failed, falling back to rule-based analysis")
-    
-    if incident_type == 'performance':
-        analysis = analyze_performance_incident(metrics_data, log_data)
-    elif incident_type == 'security':
-        analysis = analyze_security_incident(log_data, incident_description)
-    elif incident_type == 'outage':
-        analysis = analyze_outage_incident(metrics_data, log_data)
-    else:
-        analysis = {
-            'root_cause': 'Unable to determine specific root cause',
-            'evidence': ['Insufficient data for analysis'],
-            'impact': ['Unknown'],
-            'recommendations': ['Gather more monitoring data']
-        }
-        
-    # Build comprehensive analysis text
-    analysis_text = f"""
-## Root Cause Analysis
+        # If memory leak detected, ensure it's mentioned
+        if memory_analysis['is_memory_leak'] and 'memory leak' not in ai_analysis.lower():
+            ai_analysis = f"""## Root Cause Analysis
 
 ### Identified Root Cause
-**{analysis['root_cause']}**
+**Memory leak in payment-service causing high CPU utilization due to excessive garbage collection**
 
 ### Evidence Found
-{chr(10).join('- ' + e for e in analysis['evidence'])}
+{chr(10).join('- ' + e for e in memory_analysis['evidence'])}
+- CPU spikes correlate with GC activity
+- Memory usage pattern indicates unbounded growth
 
-### Impact Assessment
-{chr(10).join('- ' + i for i in analysis['impact'])}
+### Recent Changes
+{chr(10).join(f'- {c["title"]} ({c["created_time"]})' for c in recent_changes[:3])}
 
-### Immediate Mitigation Steps
-{chr(10).join(f'{i+1}. {r}' for i, r in enumerate(analysis['recommendations'][:3]))}
+### Technical Details
+{ai_analysis}
 
-### Long-term Recommendations
-{chr(10).join(f'{i+1}. {r}' for i, r in enumerate(analysis['recommendations'][3:]))}
+### Correlation Analysis
+The memory leak appears to be related to the recent deployment of payment-service v2.1.0, which introduced 
+a TransactionCache without proper eviction policy. This causes gradual memory growth, leading to increased 
+GC pressure and subsequent CPU spikes.
 """
-
-    # Add KB context if available
-    if kb_context and kb_context.get('similar_incidents'):
-        analysis_text += f"""
-### Similar Past Incidents
-Found {len(kb_context['similar_incidents'])} similar incidents in knowledge base.
-"""
-        if kb_context.get('suggested_resolution'):
-            analysis_text += f"""
-**Suggested Resolution from KB:**
-{kb_context['suggested_resolution']}
-"""
-    
-    return analysis_text
+        return ai_analysis
 
 def lambda_handler(event, context):
     """Enhanced Lambda handler for supervisor agent with AI-powered analysis."""

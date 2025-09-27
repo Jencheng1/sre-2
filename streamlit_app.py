@@ -53,6 +53,14 @@ except ImportError:
     POSTMORTEM_AVAILABLE = False
     print("Post-mortem agent not available")
 
+# Import CPU spike generator
+try:
+    from cpu_spike_generator import CPUSpikeGenerator
+    CPU_SPIKE_AVAILABLE = True
+except ImportError:
+    CPU_SPIKE_AVAILABLE = False
+    print("CPU spike generator not available")
+
 # Load MCP ports configuration
 try:
     with open('mcp_ports.json', 'r') as f:
@@ -1139,7 +1147,7 @@ class EnhancedSREDashboard:
             tab_names = ["🚨 Incident Management", "🔍 Analyze Incident", "🔧 Recent Changes", "📚 Knowledge Base", "📊 Analytics"]
             tab_offset = 0
         elif selected_nav == "🛠️ Advanced Tools":
-            tab_names = ["🐛 Defect Management", "🔗 Defect Correlation", "🧪 Correlation Scenarios", "📋 Post-Mortem", "🔐 IP Masking"]
+            tab_names = ["🐛 Defect Management", "🔗 Defect Correlation", "🧪 Correlation Scenarios", "📋 Post-Mortem", "🔐 IP Masking", "🚨 CPU Spike Demo"]
             tab_offset = 5
         else:  # Additional Features
             tab_names = ["🧪 Test Scenarios"]
@@ -1185,6 +1193,9 @@ class EnhancedSREDashboard:
                 
             with main_tabs[4]:
                 self.render_ip_masking()
+            
+            with main_tabs[5]:
+                self.render_cpu_spike_demo()
                 
         else:  # Additional Features
             tab_idx = 0
@@ -4820,6 +4831,508 @@ OpsItem ID: {incident_id}
                       title='Daily IP Masking Activity',
                       markers=True)
         st.plotly_chart(fig, use_container_width=True)
+    
+    def render_cpu_spike_demo(self):
+        """Render the CPU Spike Demo tab"""
+        st.header("🚨 CPU Spike Demo")
+        
+        if not CPU_SPIKE_AVAILABLE:
+            st.error("CPU Spike generator not available. Please check installation.")
+            return
+        
+        # Initialize CPU spike generator
+        if 'cpu_spike_gen' not in st.session_state:
+            st.session_state.cpu_spike_gen = CPUSpikeGenerator()
+        
+        cpu_spike_gen = st.session_state.cpu_spike_gen
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown("""
+            ### Real EC2 CPU Spike Generator
+            
+            This tool triggers **actual CPU spikes** on EC2 instances using AWS Systems Manager.
+            - Select a target EC2 instance
+            - Configure spike parameters
+            - Monitor real-time metrics in Grafana
+            - Automatically create OpsItem incidents
+            - Trigger AI root cause analysis
+            """)
+        
+        with col2:
+            # Grafana link
+            st.info("📊 **Grafana Dashboard**")
+            st.markdown("[Open Grafana](http://localhost:3000) (admin/admin123)")
+        
+        # Get available EC2 instances
+        with st.spinner("Fetching EC2 instances..."):
+            instances = cpu_spike_gen.get_available_ec2_instances()
+        
+        if not instances:
+            st.error("No EC2 instances found or accessible")
+            return
+        
+        # Filter SSM-enabled instances
+        ssm_instances = [i for i in instances if i['ssm_enabled']]
+        
+        if not ssm_instances:
+            st.warning("No EC2 instances with SSM agent available")
+            st.info("Please ensure SSM agent is installed and running on your EC2 instances")
+            
+            # Show all instances for reference
+            st.subheader("Available EC2 Instances")
+            df = pd.DataFrame(instances)
+            st.dataframe(df)
+            return
+        
+        # Instance selection
+        st.subheader("🎯 Target Selection")
+        
+        instance_options = {f"{i['name']} ({i['instance_id']})": i for i in ssm_instances}
+        selected_instance_key = st.selectbox(
+            "Select EC2 Instance",
+            options=list(instance_options.keys()),
+            help="Only instances with SSM agent enabled are shown"
+        )
+        
+        selected_instance = instance_options[selected_instance_key]
+        
+        # Show instance details
+        with st.expander("Instance Details", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Instance Type", selected_instance['instance_type'])
+            with col2:
+                st.metric("Private IP", selected_instance['private_ip'])
+            with col3:
+                st.metric("State", selected_instance['state'])
+        
+        # CPU spike configuration
+        st.subheader("⚡ Spike Configuration")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            cpu_percent = st.slider(
+                "Target CPU %",
+                min_value=10,
+                max_value=100,
+                value=80,
+                step=10,
+                help="Target CPU utilization percentage"
+            )
+        
+        with col2:
+            duration = st.slider(
+                "Duration (seconds)",
+                min_value=30,
+                max_value=300,
+                value=60,
+                step=30,
+                help="How long to sustain the spike"
+            )
+        
+        with col3:
+            cores = st.number_input(
+                "CPU Cores",
+                min_value=0,
+                max_value=16,
+                value=0,
+                help="0 = all cores"
+            )
+        
+        # Action buttons
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🚀 Trigger CPU Spike", type="primary", key="trigger_spike"):
+                with st.spinner("Triggering CPU spike..."):
+                    result = cpu_spike_gen.trigger_cpu_spike(
+                        instance_id=selected_instance['instance_id'],
+                        duration_seconds=duration,
+                        cpu_percent=cpu_percent,
+                        cores=cores
+                    )
+                    
+                    if result['status'] == 'success':
+                        st.success(f"✅ {result['message']}")
+                        st.session_state['active_spike'] = {
+                            'instance_id': selected_instance['instance_id'],
+                            'command_id': result['command_id'],
+                            'start_time': datetime.now(),
+                            'duration': duration,
+                            'cpu_percent': cpu_percent
+                        }
+                        
+                        # Create OpsItem
+                        with st.spinner("Creating OpsItem incident..."):
+                            ops_item = self._create_cpu_spike_ops_item(
+                                selected_instance['instance_id'],
+                                selected_instance['name'],
+                                cpu_percent
+                            )
+                            if ops_item:
+                                st.session_state['spike_ops_item_id'] = ops_item['OpsItemId']
+                                st.success(f"📋 Created OpsItem: {ops_item['OpsItemId']}")
+                    else:
+                        st.error(f"❌ {result['message']}")
+        
+        with col2:
+            if st.button("🛑 Stop CPU Spike", key="stop_spike"):
+                if 'active_spike' in st.session_state:
+                    result = cpu_spike_gen.stop_cpu_spike(
+                        instance_id=st.session_state['active_spike']['instance_id']
+                    )
+                    if result['status'] == 'success':
+                        st.success("✅ CPU spike stopped")
+                        del st.session_state['active_spike']
+                    else:
+                        st.error(f"❌ {result['message']}")
+                else:
+                    st.info("No active spike to stop")
+        
+        with col3:
+            if st.button("🔍 Run Root Cause Analysis", key="run_rca"):
+                if 'spike_ops_item_id' in st.session_state:
+                    with st.spinner("Running AI root cause analysis..."):
+                        # Trigger supervisor lambda
+                        correlation_data = self.run_supervisor_correlation(
+                            st.session_state['spike_ops_item_id']
+                        )
+                        
+                        if correlation_data and correlation_data.get('statusCode') == 200:
+                            st.session_state['spike_correlation_data'] = correlation_data
+                            st.success("✅ Root cause analysis complete")
+                        else:
+                            st.error("Failed to run root cause analysis")
+                else:
+                    st.warning("Please trigger a CPU spike first")
+        
+        # Monitor active spike
+        if 'active_spike' in st.session_state:
+            st.subheader("📊 Active Spike Monitoring")
+            
+            spike_info = st.session_state['active_spike']
+            elapsed = (datetime.now() - spike_info['start_time']).total_seconds()
+            remaining = max(0, spike_info['duration'] - elapsed)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Target CPU", f"{spike_info['cpu_percent']}%")
+            with col2:
+                st.metric("Elapsed Time", f"{int(elapsed)}s")
+            with col3:
+                st.metric("Remaining", f"{int(remaining)}s")
+            
+            # Progress bar
+            progress = min(1.0, elapsed / spike_info['duration'])
+            st.progress(progress)
+            
+            # Get command status
+            if st.button("🔄 Check Status"):
+                status = cpu_spike_gen.monitor_cpu_spike(
+                    instance_id=spike_info['instance_id'],
+                    command_id=spike_info['command_id']
+                )
+                
+                st.json(status)
+        
+        # Display metrics
+        st.subheader("📈 CPU Metrics")
+        
+        # Refresh metrics button
+        if st.button("🔄 Refresh Metrics"):
+            st.experimental_rerun()
+        
+        # Get recent CPU metrics
+        with st.spinner("Loading CPU metrics..."):
+            metrics = cpu_spike_gen.get_cpu_metrics(
+                instance_id=selected_instance['instance_id'],
+                minutes=15
+            )
+        
+        if metrics:
+            # Create metrics chart
+            df = pd.DataFrame(metrics)
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=df['Timestamp'],
+                y=df['Average'],
+                mode='lines+markers',
+                name='Average CPU',
+                line=dict(color='blue', width=2)
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=df['Timestamp'],
+                y=df['Maximum'],
+                mode='lines+markers',
+                name='Max CPU',
+                line=dict(color='red', width=2, dash='dash')
+            ))
+            
+            # Add threshold line
+            fig.add_hline(y=80, line_dash="dot", line_color="orange",
+                         annotation_text="Alert Threshold (80%)")
+            
+            fig.update_layout(
+                title="EC2 CPU Utilization",
+                xaxis_title="Time",
+                yaxis_title="CPU %",
+                yaxis=dict(range=[0, 100]),
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Metrics table
+            with st.expander("Raw Metrics Data"):
+                st.dataframe(df)
+        
+        # Display correlation results if available
+        if 'spike_correlation_data' in st.session_state:
+            st.subheader("🤖 AI Root Cause Analysis Results")
+            
+            correlation_data = st.session_state['spike_correlation_data']
+            body = json.loads(correlation_data.get('body', '{}'))
+            
+            if 'root_cause_analysis' in body:
+                # Parse the root cause analysis text
+                analysis_text = body['root_cause_analysis']
+                
+                # Extract sections from the analysis text
+                sections = {
+                    'root_cause': '',
+                    'impact': '',
+                    'mitigation': '',
+                    'recommendations': []
+                }
+                
+                # Split the analysis into sections
+                current_section = None
+                lines = analysis_text.split('\n')
+                
+                for line in lines:
+                    line = line.strip()
+                    if '1. **Root Cause Analysis**' in line or 'Root Cause Analysis:' in line:
+                        current_section = 'root_cause'
+                    elif '2. **Impact Assessment**' in line or 'Impact Assessment:' in line:
+                        current_section = 'impact'
+                    elif '3. **Immediate Mitigation Steps**' in line or 'Immediate Mitigation Steps:' in line:
+                        current_section = 'mitigation'
+                    elif '4. **Long-term Recommendations**' in line or 'Long-term Recommendations:' in line:
+                        current_section = 'recommendations'
+                    elif current_section and line:
+                        if current_section == 'recommendations' and line.startswith('- '):
+                            sections['recommendations'].append(line[2:])
+                        elif current_section != 'recommendations':
+                            if sections[current_section]:
+                                sections[current_section] += '\n' + line
+                            else:
+                                sections[current_section] = line
+                
+                # Display the analysis
+                st.markdown("### 🎯 Root Cause Analysis")
+                if sections['root_cause']:
+                    st.info(sections['root_cause'])
+                else:
+                    st.info("No specific root cause identified. Analyzing available data...")
+                
+                # Display impact if available
+                if sections['impact']:
+                    st.markdown("### 💥 Impact Assessment")
+                    st.warning(sections['impact'])
+                
+                # Display mitigation steps
+                if sections['mitigation']:
+                    st.markdown("### 🚨 Immediate Mitigation Steps")
+                    st.error(sections['mitigation'])
+                
+                # Display recommendations
+                if sections['recommendations']:
+                    st.markdown("### 💡 Long-term Recommendations")
+                    for rec in sections['recommendations']:
+                        st.markdown(f"- {rec}")
+                
+                # Show incident details
+                st.markdown("### 📋 Incident Details")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Type", body.get('incident_type', 'Unknown'))
+                with col2:
+                    st.metric("Service", body.get('service', 'Unknown'))
+                with col3:
+                    st.metric("Environment", body.get('environment', 'Unknown'))
+            else:
+                st.warning("No analysis data available. The supervisor Lambda may not have returned results.")
+                
+                # Knowledge base results
+                if 'knowledge_base_results' in body:
+                    st.markdown("### 📚 Related Knowledge Base Articles")
+                    kb_results = body['knowledge_base_results']
+                    
+                    if kb_results:
+                        for kb in kb_results[:3]:
+                            with st.expander(f"{kb.get('title', 'Article')} (Score: {kb.get('score', 0):.2f})"):
+                                st.markdown(kb.get('content', 'No content'))
+                                if 'resolution' in kb:
+                                    st.markdown("**Resolution:**")
+                                    st.code(kb['resolution'])
+                    else:
+                        st.info("No related articles found")
+        
+        # Historical incidents
+        st.subheader("📜 Historical CPU Spike Incidents")
+        
+        if st.button("🔍 Search Similar Incidents"):
+            with st.spinner("Searching knowledge base..."):
+                similar_incidents = self.query_knowledge_base(
+                    f"CPU spike high utilization {selected_instance['instance_type']}"
+                )
+                
+                if similar_incidents:
+                    for incident in similar_incidents[:5]:
+                        with st.expander(f"{incident.get('title', 'Incident')} - {incident.get('date', 'Unknown')}"):
+                            st.markdown(f"**Description:** {incident.get('description', 'N/A')}")
+                            st.markdown(f"**Root Cause:** {incident.get('root_cause', 'N/A')}")
+                            if 'resolution' in incident:
+                                st.markdown("**Resolution:**")
+                                st.code(incident['resolution'])
+                else:
+                    st.info("No similar incidents found")
+    
+    def query_knowledge_base(self, query_text):
+        """Simple wrapper to query knowledge base for similar incidents."""
+        try:
+            # Invoke knowledge base Lambda directly
+            lambda_client = boto3.client('lambda', region_name=self.region)
+            response = lambda_client.invoke(
+                FunctionName='sre-knowledge-base-agent-lambda',
+                InvocationType='RequestResponse',
+                Payload=json.dumps({
+                    'action': 'search_incidents',
+                    'query': query_text,
+                    'k': 5  # Get top 5 results
+                })
+            )
+            
+            result = json.loads(response['Payload'].read())
+            
+            if result.get('statusCode') == 200:
+                body = json.loads(result['body'])
+                results = body.get('results', [])
+                
+                # Format results for display
+                formatted_results = []
+                for res in results:
+                    formatted_results.append({
+                        'title': res.get('title', 'CPU Spike Incident'),
+                        'date': res.get('timestamp', 'Unknown'),
+                        'description': res.get('description', res.get('content', 'No description')),
+                        'root_cause': res.get('root_cause', 'Analysis pending'),
+                        'resolution': res.get('resolution', res.get('resolution_steps', ''))
+                    })
+                
+                return formatted_results
+            else:
+                return []
+                
+        except Exception as e:
+            st.error(f"Error querying knowledge base: {str(e)}")
+            return []
+    
+    def run_supervisor_correlation(self, ops_item_id):
+        """Run supervisor correlation analysis for the given OpsItem."""
+        try:
+            # Get the OpsItem details
+            response = self.ssm_client.get_ops_item(OpsItemId=ops_item_id)
+            ops_item = response['OpsItem']
+            
+            # Get operational data for more context
+            op_data = ops_item.get('OperationalData', {})
+            instance_id = op_data.get('InstanceId', {}).get('Value', 'i-02bef13982a179478')
+            cpu_value = op_data.get('CPUUtilization', {}).get('Value', '95%')
+            
+            # Build enhanced description with JVM/memory context
+            enhanced_description = f"""
+{ops_item.get('Title', 'High CPU Alert')}. {ops_item.get('Description', '')}
+
+Additional context:
+- Instance: {instance_id} (SRE-DEMO with payment-service)
+- CPU utilization: {cpu_value}
+- Service: payment-service (Java application)
+- Suspected cause: JVM garbage collection overhead
+- Memory pressure detected with possible memory leak
+- TransactionCache may be growing unbounded
+- Recent deployment: payment-service v2.1.0
+"""
+            
+            # Build the payload for supervisor lambda
+            payload = {
+                'action': 'analyze',
+                'incident_description': enhanced_description.strip(),
+                'start_time': (datetime.utcnow() - timedelta(hours=3)).isoformat(),
+                'end_time': datetime.utcnow().isoformat(),
+                'service': 'payment-service',
+                'environment': 'production',
+                'additional_context': {
+                    'ops_item_id': ops_item_id,
+                    'severity': ops_item.get('Severity', '2'),
+                    'incident_type': 'performance',
+                    'instance_id': instance_id
+                }
+            }
+            
+            # Invoke the supervisor Lambda
+            response = self.lambda_client.invoke(
+                FunctionName='sre-supervisor-lambda',
+                InvocationType='RequestResponse',
+                Payload=json.dumps(payload)
+            )
+            
+            # Parse the response
+            result = json.loads(response['Payload'].read())
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error running supervisor correlation: {str(e)}")
+            return {
+                'statusCode': 500,
+                'body': json.dumps({
+                    'error': str(e),
+                    'message': 'Failed to run correlation analysis'
+                })
+            }
+    
+    def _create_cpu_spike_ops_item(self, instance_id, instance_name, cpu_percent):
+        """Create an OpsItem for CPU spike incident"""
+        try:
+            response = self.ssm_client.create_ops_item(
+                Title=f"High CPU Alert - {instance_name}",
+                Description=f"CPU utilization spike detected on EC2 instance {instance_name} ({instance_id}). Current CPU: {cpu_percent}%. Instance is running payment-service Java application. Possible JVM memory pressure or GC overhead.",
+                Source="SRE-Copilot-CPU-Demo",
+                Severity="2",  # High severity
+                Category="Performance",
+                OperationalData={
+                    "/aws/resources": {
+                        "Value": json.dumps([{
+                            "arn": f"arn:aws:ec2:us-east-1::{instance_id}"
+                        }])
+                    },
+                    "InstanceId": {"Value": instance_id},
+                    "InstanceName": {"Value": instance_name},
+                    "CPUPercent": {"Value": str(cpu_percent)},
+                    "IncidentType": {"Value": "cpu-spike"},
+                    "GeneratedBy": {"Value": "CPU-Spike-Demo"}
+                }
+            )
+            
+            return response
+            
+        except Exception as e:
+            st.error(f"Failed to create OpsItem: {str(e)}")
+            return None
     
     def render_test_scenarios(self):
         """Render the Test Scenarios tab"""
