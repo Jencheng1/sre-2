@@ -73,6 +73,7 @@ env.sh
 *.env.sh
 config.env*
 secrets.*
+grafana.env
 
 # Temporary credential files
 *.tmp
