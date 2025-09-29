@@ -45,5 +45,46 @@ logs/
 
 # AWS
 .aws/
-aws.json .terraform/
+aws.json
 .terraform/
+*.terraform*
+terraform.tfstate*
+*.pem
+*.pfx
+
+# AWS Credentials and Secrets
+*credentials*
+*aws-credentials*
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_SESSION_TOKEN
+aws_access_key_id
+aws_secret_access_key
+aws_session_token
+*.aws.json
+*.aws.yml
+*.aws.yaml
+
+# Environment files that might contain secrets
+.env
+.env.*
+*.env
+env.sh
+*.env.sh
+config.env*
+secrets.*
+grafana.env
+
+# Temporary credential files
+*.tmp
+*.temp
+*-temp
+*-tmp
+
+# Large files and build artifacts
+*.jar
+*.war
+*.ear
+backups/
+backup_*.tar.gz
+payment-demo/*/target/
