@@ -47,3 +47,4 @@ logs/
 .aws/
 aws.json .terraform/
 .terraform/
+grafana.env
