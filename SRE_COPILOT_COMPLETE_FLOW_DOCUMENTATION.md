@@ -193,16 +193,18 @@ aws events put-rule \
     }'
 
 # Add Lambda as target
+# Note: The actual target should be sre-opsitem-indexer, not knowledge-base directly
 aws events put-targets \
     --rule sre-opsitem-indexing \
-    --targets "Id"="1","Arn"="arn:aws:lambda:$REGION:*:function:sre-knowledge-base-agent-lambda"
+    --targets "Id"="1","Arn"="arn:aws:lambda:$REGION:*:function:sre-opsitem-indexer"
 ```
 
 ### What This Rule Does:
 - Monitors CloudTrail for OpsItem creation/update events
-- Automatically triggers the Knowledge Base Lambda
-- Indexes new incidents for future searches
+- Automatically triggers the **OpsItem Indexer Lambda** (`sre-opsitem-indexer`)
+- OpsItem Indexer then calls the Knowledge Base Lambda to index incidents
 - Does NOT trigger the supervisor analysis
+- Creates a two-step process: EventBridge → OpsItem Indexer → Knowledge Base
 
 ---
 
@@ -261,23 +263,58 @@ def lambda_handler(event, context):
         return analyze_log_group(event)
 ```
 
-### 6.3 Knowledge Base Lambda
+### 6.3 OpsItem Indexer Lambda
+**Location**: `/home/ec2-user/sre/sre_mcp/src/lambdas/opsitem-indexer/lambda_function.py`
+
+This Lambda is triggered by EventBridge and handles the auto-indexing of OpsItems:
+
+```python
+def lambda_handler(event, context):
+    """Auto-index OpsItems when created/updated."""
+    # Extract OpsItem ID from CloudTrail event
+    detail = event.get('detail', {})
+    event_name = detail.get('eventName')
+    
+    if event_name == 'CreateOpsItem':
+        ops_item_id = detail['responseElements']['opsItemId']
+    elif event_name == 'UpdateOpsItem':
+        ops_item_id = detail['requestParameters']['opsItemId']
+    
+    # Get full OpsItem details
+    response = ssm_client.get_ops_item(OpsItemId=ops_item_id)
+    ops_item = response['OpsItem']
+    
+    # Invoke Knowledge Base Lambda
+    kb_response = lambda_client.invoke(
+        FunctionName='sre-knowledge-base-agent-lambda',
+        InvocationType='RequestResponse',
+        Payload=json.dumps({
+            'action': 'index_opsitem',
+            'ops_item': ops_item
+        })
+    )
+```
+
+### 6.4 Knowledge Base Lambda
 **Location**: `/home/ec2-user/sre/sre_mcp/src/lambdas/knowledge-base-agent/lambda_function_serverless.py`
 
 ```python
 def lambda_handler(event, context):
     """Handle knowledge base operations."""
     kb = ServerlessKnowledgeBase()
+    action = event.get('action', 'search')
     
-    # Auto-indexing from EventBridge
-    if event.get('source') == 'aws.ssm':
-        return handle_opsitem_event(event, kb)
+    if action == 'index_opsitem':
+        # Called by OpsItem Indexer
+        ops_item = event.get('ops_item')
+        result = kb.index_opsitem(ops_item)
+        return {'statusCode': 200, 'body': json.dumps(result)}
     
-    # Search operation
     elif action == 'search':
+        # Called by Supervisor Lambda
         query = event.get('query', '')
         results = kb.search_similar_documents(query, k=5)
-        return results
+        return {'statusCode': 200, 'body': json.dumps({'results': results})}
 ```
 
 ---
@@ -478,9 +515,11 @@ def lambda_handler(event, context):
    - Returns OpsItem ID to dashboard
 
 3. **EventBridge Auto-Indexing** (Automatic):
-   - EventBridge rule detects OpsItem creation
-   - Triggers `sre-knowledge-base-agent-lambda`
-   - Indexes incident for future searches
+   - EventBridge rule detects OpsItem creation via CloudTrail
+   - Triggers `sre-opsitem-indexer` Lambda
+   - OpsItem Indexer fetches full OpsItem details from SSM
+   - Invokes `sre-knowledge-base-agent-lambda` to index the incident
+   - Knowledge Base stores incident with embeddings for future searches
 
 4. **Manual Root Cause Analysis**:
    - User selects OpsItem in dashboard
