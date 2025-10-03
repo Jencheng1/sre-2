@@ -502,7 +502,7 @@ def lambda_handler(event, context):
 
 ## 10. How Everything Works Together
 
-### End-to-End Flow:
+### Enhanced Automatic End-to-End Flow:
 
 1. **User Initiates Incident**:
    - Opens Streamlit dashboard (http://localhost:8501)
@@ -514,43 +514,54 @@ def lambda_handler(event, context):
    - Creates OpsItem in AWS Systems Manager
    - Returns OpsItem ID to dashboard
 
-3. **EventBridge Auto-Indexing** (Automatic):
+3. **Automatic AI Analysis Triggered** (NEW - Fully Automatic):
    - EventBridge rule detects OpsItem creation via CloudTrail
-   - Triggers `sre-opsitem-indexer` Lambda
-   - OpsItem Indexer fetches full OpsItem details from SSM
-   - Invokes `sre-knowledge-base-agent-lambda` to index the incident
-   - Knowledge Base stores incident with embeddings for future searches
+   - Triggers enhanced `sre-opsitem-indexer` Lambda
+   - OpsItem Indexer performs THREE actions:
+     * Indexes OpsItem to Knowledge Base
+     * **Automatically invokes Supervisor Lambda for AI analysis**
+     * Updates OpsItem with analysis results
 
-4. **Manual Root Cause Analysis**:
-   - User selects OpsItem in dashboard
-   - Clicks "Analyze Root Cause" button
-   - Dashboard invokes supervisor Lambda
+4. **Automatic Root Cause Analysis** (No User Action Required):
+   - Supervisor Lambda automatically:
+     * Collects CloudWatch metrics and logs
+     * Searches Knowledge Base for similar incidents
+     * **Invokes ALL specialized agent Lambdas**
+     * Generates AI-powered analysis using Bedrock Claude 3
+   - Results automatically stored in OpsItem and Knowledge Base
 
-5. **Supervisor Orchestration**:
-   - Supervisor Lambda receives incident details
-   - Queries CloudWatch for metrics/logs
-   - Searches Knowledge Base for similar incidents
-   - Calls Bedrock AI for analysis
-   - Invokes specialized agent Lambdas
+5. **Automatic Agent Orchestration** (Enhanced):
+   - Supervisor Lambda automatically invokes ALL applicable agents:
+     * CloudWatch Logs Agent - analyzes application logs
+     * CloudTrail Agent - checks security events
+     * VPC Agent - analyzes network configurations
+     * VPC Flow Logs Agent - checks network traffic
+     * Trusted Advisor Agent - gets AWS recommendations
+     * Personal Health Agent - checks AWS service health
+   - All agents run in parallel for faster analysis
 
-6. **Specialized Agent Analysis**:
-   - Each agent analyzes specific AWS service data
-   - CloudWatch agent checks logs for errors
-   - CloudTrail agent checks for security events
-   - VPC agent checks network issues
-   - Results returned to supervisor
+6. **Comprehensive AI Analysis**:
+   - Supervisor sends ALL collected data to Bedrock Claude 3:
+     * Metrics from CloudWatch
+     * Logs with error patterns
+     * Findings from all 6+ specialized agents
+     * Similar incidents from Knowledge Base
+   - AI generates comprehensive root cause analysis
+   - Provides specific, actionable recommendations
 
-7. **AI-Powered Analysis**:
-   - Supervisor sends all context to Bedrock Claude 3
-   - AI provides root cause analysis
-   - Generates actionable recommendations
-   - Identifies similar past incidents
+7. **Automatic Results Storage**:
+   - OpsItem updated with:
+     * AI analysis summary
+     * Root cause determination
+     * Recommendations
+     * Agent findings
+   - Full analysis indexed to Knowledge Base
+   - Available immediately in Streamlit dashboard
 
-8. **Results Display**:
-   - Supervisor returns consolidated analysis
-   - Streamlit displays results in dashboard
-   - Shows root cause, impact, and recommendations
-   - Updates incident timeline
+8. **Manual Review (Optional)**:
+   - User can view automatic analysis in dashboard
+   - No action required - analysis already complete
+   - Can trigger additional analysis if needed
 
 ### Key Integration Points:
 
@@ -570,3 +581,55 @@ def lambda_handler(event, context):
 5. **Network**: Access to AWS services and Bedrock
 
 This documentation provides a complete understanding of the SRE Copilot system without requiring access to the repository.
+
+---
+
+## 11. Deploying the Enhanced Automatic AI Analysis
+
+To enable the automatic AI analysis flow:
+
+### Step 1: Deploy Enhanced OpsItem Indexer
+```bash
+cd /home/ec2-user/sre/sre_mcp
+./deploy_enhanced_opsitem_indexer.sh
+```
+
+This will:
+- Update the OpsItem Indexer Lambda with automatic AI triggering
+- Configure EventBridge rule to use the enhanced indexer
+- Set up proper IAM permissions
+
+### Step 2: Update Supervisor Lambda
+```bash
+./update_supervisor_for_auto_analysis.sh
+```
+
+This will:
+- Update Supervisor Lambda to automatically invoke all agents
+- Configure longer timeout for comprehensive analysis
+- Enable parallel agent invocation
+
+### Step 3: Test the Automatic Flow
+```bash
+python3 test_automatic_ai_analysis.py
+```
+
+This will:
+- Create a test OpsItem
+- Monitor the automatic analysis progress
+- Display results when complete
+- Verify Knowledge Base indexing
+
+### Expected Timeline:
+1. OpsItem Creation: Immediate
+2. EventBridge Trigger: ~30-60 seconds (CloudTrail delay)
+3. Knowledge Base Indexing: ~10 seconds
+4. AI Analysis: ~60-120 seconds
+5. Total Time: ~2-3 minutes for complete analysis
+
+### Monitoring:
+- Check CloudWatch Logs for each Lambda
+- View OpsItem in Systems Manager console
+- Monitor Streamlit dashboard for updates
+
+The system is now fully automated - every incident gets AI-powered root cause analysis without any manual intervention!
