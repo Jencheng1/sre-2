@@ -1009,7 +1009,7 @@ class SRECopilotComplete:
                 st.error(f"❌ Error creating Jira issue: {str(e)}")
         
         if success_count > 0:
-            st.balloons()
+            st.success(f"✅ Successfully created {success_count} defect(s)")
 
     def display_existing_defects(self):
         """Display existing defects from both platforms"""

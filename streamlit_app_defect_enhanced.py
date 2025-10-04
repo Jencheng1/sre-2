@@ -852,7 +852,7 @@ def main():
                         st.error(f"❌ Error creating Jira issue: {str(e)}")
                 
                 if success_count > 0:
-                    st.balloons()
+                    st.success(f"✅ Successfully created {success_count} defect(s)")
     
     elif page == "🔄 Change Management":
         st.markdown("## 🔄 Change Management Dashboard")
@@ -1186,7 +1186,6 @@ def main():
                                                 
                                                 if result['success']:
                                                     st.success(f"✅ Problem {result['problem_number']} created automatically!")
-                                                    st.balloons()
                                                 else:
                                                     st.error(f"Failed to create problem: {result.get('error', 'Unknown error')}")
                             
@@ -1268,8 +1267,6 @@ def main():
                                     link_result = problem_manager.link_problem_to_incident(result['problem_id'], incident_id)
                                     if link_result['success']:
                                         st.success("🔗 Problem successfully linked to incident")
-                                    
-                                    st.balloons()
                                 else:
                                     st.error(f"❌ Failed to create problem: {result.get('error', 'Unknown error')}")
                                     

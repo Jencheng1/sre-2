@@ -1,0 +1,466 @@
+[
+  {
+    "eventTime": "2025-10-04T10:53:34.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAD4516E9F38",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/users/512",
+      "method": "POST",
+      "response_size_bytes": 18739
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "438e1633-d151-46e6-bf12-9595519e5369",
+    "eventID": "5f07110b-2b92-45b8-9a65-787c90be603d",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T10:55:34.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA4F9B489231",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/products/924",
+      "method": "GET",
+      "response_size_bytes": 40850
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "cc42c1b2-4690-4a60-b3b3-d040ff459576",
+    "eventID": "f334c4f9-13c8-4ffe-a6f1-612fbcc00f7a",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T10:56:04.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAE6FA4D1455",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/63",
+      "method": "POST",
+      "response_size_bytes": 6478
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "5cf5e64b-9332-4602-a006-aa0bb6cccbb5",
+    "eventID": "e2f19d0b-5a42-415d-bfcb-50724b8cfd10",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T10:57:34.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA13E46D2167",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/users/184",
+      "method": "GET",
+      "response_size_bytes": 6791
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "4b389894-f622-4053-ac12-1cdfce8e7b27",
+    "eventID": "cb28fad4-5f2a-4df2-b0e9-4512801ff322",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T10:59:04.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA7D8B07BBFA",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/products/997",
+      "method": "POST",
+      "response_size_bytes": 41529
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "91d6e8fb-c742-4ebc-9ba9-ee8451d94b44",
+    "eventID": "c9b424dc-16eb-4c7c-b7b9-0ede8ea76747",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:00:04.032354",
+    "eventName": "RunInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA886297C8AE",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/599",
+      "method": "POST",
+      "response_size_bytes": 36469
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "aaf307dd-0547-4677-ad99-ebbabf85bbfe",
+    "eventID": "a810f6a9-ab9e-4dba-a3f2-4a3b01d577b6",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:02:04.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA0818D777A9",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/users/603",
+      "method": "PUT",
+      "response_size_bytes": 7617
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "2b1c8245-e923-45ff-b48e-d270f078adef",
+    "eventID": "caeae6aa-5ecc-4a0e-b721-1de532e7d228",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:05:34.032354",
+    "eventName": "ModifyInstanceAttribute",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA0C438F964A",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/361",
+      "method": "PUT",
+      "response_size_bytes": 19612
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "c6465a29-3d59-45f0-84b2-bba4de92a07e",
+    "eventID": "2970767b-27aa-40d1-bc18-340bb198090d",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:08:04.032354",
+    "eventName": "RunInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA04886D58FA",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/656",
+      "method": "POST",
+      "response_size_bytes": 7899
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "8957534e-61ad-4a7f-8c1a-393f9957da0c",
+    "eventID": "11c97145-267e-493c-ad74-8e1d91e8ab30",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:08:34.032354",
+    "eventName": "DescribeInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA03CFBD4A6A",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/users/461",
+      "method": "GET",
+      "response_size_bytes": 46222
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "b623136a-ff21-40b9-b1c6-0fdf7b9fb459",
+    "eventID": "3630c1f5-2d5d-4eb2-94f6-ab762424ec5e",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:09:04.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA780A7AC284",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/33",
+      "method": "POST",
+      "response_size_bytes": 12409
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "d695408c-555c-4828-845b-a43d94302bbb",
+    "eventID": "61ae6d36-d938-4500-855d-b16ac446ffcb",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:10:04.032354",
+    "eventName": "RunInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA712958774D",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/947",
+      "method": "POST",
+      "response_size_bytes": 9269
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "ab9ab9d0-2fc1-443c-858f-baa85e5933ad",
+    "eventID": "6157c565-4fcc-4ca0-8f2c-99308f49ba1b",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:11:34.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA51B4923ADE",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/939",
+      "method": "PUT",
+      "response_size_bytes": 5903
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "460566f1-7f3a-4516-aa88-08780f0332e1",
+    "eventID": "4bd83cfb-2277-47f1-a01a-41ef64911236",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:12:34.032354",
+    "eventName": "RunInstances",
+    "eventSource": "ec2.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDACDA6555C10",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/685",
+      "method": "POST",
+      "response_size_bytes": 24853
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "b6365839-d57a-466e-8f72-811b82a12bdc",
+    "eventID": "198f5824-05dc-441e-b912-8919e0d86281",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:14:34.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDAA422AC4A9C",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/users/240",
+      "method": "POST",
+      "response_size_bytes": 47718
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "2f6a687c-1864-4450-828c-068ce668db09",
+    "eventID": "f9fe5f23-d305-45dc-9ef8-3b6f9cc33b9d",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  },
+  {
+    "eventTime": "2025-10-04T11:16:04.032354",
+    "eventName": "AssumeRole",
+    "eventSource": "sts.amazonaws.com",
+    "userIdentity": {
+      "type": "IAMUser",
+      "principalId": "AIDA3E5AFE601B",
+      "arn": "arn:aws:iam::123456789012:user/unknown",
+      "accountId": "123456789012",
+      "userName": "unknown"
+    },
+    "sourceIPAddress": "192.168.1.1",
+    "userAgent": "aws-cli/2.0.0",
+    "requestParameters": {
+      "endpoint": "/api/v1/orders/370",
+      "method": "GET",
+      "response_size_bytes": 16160
+    },
+    "responseElements": {
+      "status": "success",
+      "error": null
+    },
+    "errorCode": null,
+    "errorMessage": null,
+    "requestID": "8aeacc19-821d-494f-8ec8-63461add7ad3",
+    "eventID": "2c379eab-2db2-457f-a655-63af9ca47894",
+    "eventType": "AwsApiCall",
+    "recipientAccountId": "123456789012"
+  }
+]
